@@ -3,6 +3,8 @@ BLADE: Bayesian Log-normAl DEconvolution for enhanced in silico microdissection 
 
 BLADE was designed to jointly estimate cell type composition and gene expression profiles per cell type in a single-step while accounting for the observed gene expression variability in single-cell RNA-seq data. 
 
+Demo is available [here](https://github.com/tgac-vumc/BLADE/blob/master/jupyter/BLADE%20-%20Demo%20script.ipynb).
+
 <p align="center">
   <img width="490" height="820" src="https://github.com/tgac-vumc/BLADE/blob/master/framework.png">
 </p>
