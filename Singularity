@@ -15,7 +15,6 @@ Include: yum
     bash /tmp/miniconda.sh -bfp /usr/local
     conda update conda -y
     
-    git clone https://github.com/tgac-vumc/BLADE
     conda install mamba -c conda-forge -y
     mamba install -c conda-forge -c bioconda jupyter numpy numba scikit-learn joblib multiprocess time scipy qgrid seaborn
     jupyter nbextension enable --py --sys-prefix qgrid

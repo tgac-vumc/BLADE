@@ -1,16 +1,16 @@
-# BLADE (when logo is ready, put it here)
+# BLADE 
 BLADE: Bayesian Log-normAl DEconvolution for enhanced in silico microdissection of bulk gene expression data
 
 BLADE was designed to jointly estimate cell type composition and gene expression profiles per cell type in a single-step while accounting for the observed gene expression variability in single-cell RNA-seq data. 
 
-Demo is available [here](https://github.com/tgac-vumc/BLADE/blob/master/jupyter/BLADE%20-%20Demo%20script.ipynb).
+Demo notebook is available [here](https://github.com/tgac-vumc/BLADE/blob/master/jupyter/BLADE%20-%20Demo%20script.ipynb).
 
 <p align="center">
   <img width="490" height="820" src="https://github.com/tgac-vumc/BLADE/blob/master/framework.png">
 </p>
 
 
-## Usage
+## Installation
 
 ### Using Conda
 ### Step 1: Installing Miniconda 3
@@ -27,18 +27,26 @@ curl https://repo.continuum.io/miniconda/Miniconda3-latest-MacOSX-x86_64.sh -o M
 bash Miniconda3-latest-MacOSX-x86_64.sh
 ```
 
-### Step 2: Downloading repository & creating environment
+### Step 2: Create a conda environment
+
+You can install all the necessary dependency using the following command.
 
 ```
-mkdir BLADE
-cd BLADE
-git clone https://github.com/tgac-vumc/BLADE
-conda env create --name BLADE --file env.yaml
+conda install mamba -c conda-forge -y
+mamba create --name BLADE -c conda-forge -c bioconda jupyter numpy numba scikit-learn joblib multiprocess time scipy qgrid seaborn
 ```
 
-### Using Singularity (NEEDS TO BE DONE)
+Then, the `BLADE` environment can be activate by:
 
-The singularity container holds a virtual environment of X and it's available with:
+```
+conda activate BLADE
+```
+
+### Using Singularity
+
+If you have Singularity, you can simply pull the singularity container with all dependency resolved.
+
 ```
 singularity pull shub://tgac-vumc/BLADE
 ```
+
