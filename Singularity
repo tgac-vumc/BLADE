@@ -17,7 +17,7 @@ Include: yum
     
     git clone https://github.com/tgac-vumc/BLADE
     conda install mamba -c conda-forge -y
-    mamba install -c conda-forge -c bioconda jupyter numpy numba scikit-learn joblib multiprocess time scipy qgrid plotly seaborn
+    mamba install -c conda-forge -c bioconda jupyter numpy numba scikit-learn joblib multiprocess time scipy qgrid seaborn
     jupyter nbextension enable --py --sys-prefix qgrid
     jupyter nbextension enable --py --sys-prefix widgetsnbextension
  
