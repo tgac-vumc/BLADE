@@ -1,0 +1,15 @@
+name: BLADE
+channels:
+  - bioconda
+  - conda-forge
+dependencies:
+  - jupyter
+  - numpy
+  - numba
+  - scikit-learn
+  - joblib
+  - multiprocess
+  - time
+  - scipy
+  - qgrid
+  - seqborn
