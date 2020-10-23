@@ -78,7 +78,7 @@ If you have Singularity, you can simply pull the singularity container with all 
 singularity pull shub://tgac-vumc/BLADE
 ```
 
-## Basic usage of BLADE
+## Overview of BLADE
 
 In the BLADE package, you can load the following functions and modules.
 
