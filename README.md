@@ -75,12 +75,26 @@ singularity pull shub://tgac-vumc/BLADE
 ## Basic usage of BLADE
 
 In the BLADE package, you can load the following functions and modules.
-You can load them by
 
-- `BLADE`: A class object contains core algorithms of `BLADE`. Users can reach internal variables (`Nu`, `Omega`, and `Beta`) and functions for calculating objective functions (ELBO function) and gradients with respect to the variational parameters. There also is an optimization function (`BLADE.Optimize()`) for performing L-BFGS optimization. Though this is the core, we also provide a more accessible function (`BLADE_framework`) that performs deconvolution.
+- `BLADE`: A class object contains core algorithms of `BLADE`. Users can reach internal variables (`Nu`, `Omega`, and `Beta`) and functions for calculating objective functions (ELBO function) and gradients with respect to the variational parameters. There also is an optimization function (`BLADE.Optimize()`) for performing L-BFGS optimization. Though this is the core, we also provide a more accessible function (`BLADE_framework`) that performs deconvolution. See below to obtain the current estimate of cellualr fractions, gene expression profiles per cell type and per sample:
+  - `ExpF(self.Beta)` : returns a `Nsample` by `Ngene` matrix contains estimated fraction of each cell type in each sample.
+  - `self.Nu`: a `Nsample` by `Ngene` by `Ncell` multidimensional array contains estimated gene expression levels of each gene in each cell type for each sample.
+  - `numpy.mean(self.Nu,0)`: To obtain a estimated gene expression profile per cell type, we can simply take an average across the samples.
 
-- `BLADE_framework`: A framework based on the `BLADE` class module above.
-
-```
-from BLADE import *
-```
+- `BLADE_framework`: A framework based on the `BLADE` class module above. Users need to provide the following input/output arguments.
+  - Input arguments
+    - `X`: a `Ngene` by `Ncell` matrix contains average gene expression profiles per cell type (a signature matrix) in log-scale.
+    - `stdX`: a `Ngene` by `Ncell` matrix contains standard deviation per gene per cell type (a signature matrix of gene expression variability).
+    - `Y`: a `Ngene` by `Nsample` matrix contains bulk gene expression data. This should be in linear-scale data without log-transformation.
+    - `Ind_Marker`: Index for marker genes. By default, `[True]*Ngene` (all genes used without filtering). For the genes with `False` they are excluded in the first phase (Empirical Bayes) for finidng the best hyperparameters.
+    - `Ind_sample`: Index for the samples used in the first phase (Empirical Bayes). By default, `[True]*Nsample` (all samples used).
+    - `Alphas`, `Alpha0s`, `Kappa0s` and `SYs`: all possible hyperparameters considered in the phase of Empirical Bayes. A default parameters are offered as described in the manuscript (to appear): `Alphas=[1,10]`, `Alpha0s=[0.1, 1, 5]`, `Kappa0s=[1,0.5,0.1]` and `SYs=[1,0.3,0.5]`. 
+    - `Nrep`: Number of repeat for evaluating each parameter configuration in Empirical Bayes phase. By default, `Nrep=3`.
+    - `Nrepfinal`: Number of repeated optimizations for the final parameter set. By default, `Nrepfinal=10`.
+    - `Njob`: Number of jobs executed in parallel. By default, `Njob=10`.
+  - Output values
+    - `final_obj`: A final `BLADE` object with optimized variational parameters and hyperparameters.
+    - `best_obj`: The best object form Empirical Bayes step. If no genes and samples are filtered, `best_obj` is the same as `final_obj`.
+    - `best_set`: A list contains the hyperparameters selected in the Empirical Bayes step.
+    - `All_out`: A list of `BLADE` objects from the Empirical Bayes step.
+- `BLADE_run`/`BLADE_wrapper`: An internal function used by `BLADE_framework`.
