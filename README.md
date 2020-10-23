@@ -5,6 +5,12 @@
 # BLADE: Bayesian Log-normAl DEconvolution
 
 
+[![Python 3.6](https://img.shields.io/badge/python-3.6-blue.svg)](https://www.python.org/downloads/release/python-360/)
+[![PyPI version](https://badge.fury.io/py/BLADE-Deconvolution.svg)](https://badge.fury.io/py/BLADE-Deconvolution)
+[![https://www.singularity-hub.org/static/img/hosted-singularity--hub-%23e32929.svg](https://www.singularity-hub.org/static/img/hosted-singularity--hub-%23e32929.svg)](https://singularity-hub.org/collections/4861)
+
+
+
 BLADE (Bayesian Log-normAl DEconvolution) was designed to jointly estimate cell type composition and gene expression profiles per cell type in a single-step while accounting for the observed gene expression variability in single-cell RNA-seq data. 
 
 Demo notebook is available [here](https://github.com/tgac-vumc/BLADE/blob/master/jupyter/BLADE%20-%20Demo%20script.ipynb).
@@ -97,4 +103,4 @@ In the BLADE package, you can load the following functions and modules.
     - `best_obj`: The best object form Empirical Bayes step. If no genes and samples are filtered, `best_obj` is the same as `final_obj`.
     - `best_set`: A list contains the hyperparameters selected in the Empirical Bayes step.
     - `All_out`: A list of `BLADE` objects from the Empirical Bayes step.
-- `BLADE_run`/`BLADE_wrapper`: An internal function used by `BLADE_framework`.
+- `BLADE_run`/`BLADE_wrapper`: Internal functions used by `BLADE_framework`.
