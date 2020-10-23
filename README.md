@@ -10,10 +10,11 @@ BLADE (Bayesian Log-normAl DEconvolution) was designed to jointly estimate cell 
 Demo notebook is available [here](https://github.com/tgac-vumc/BLADE/blob/master/jupyter/BLADE%20-%20Demo%20script.ipynb).
 
 <p align="center">
-  <img width="490" height="820" src="https://github.com/tgac-vumc/BLADE/blob/master/framework.png">
-  BLADE framework. To construct a prior knowledge of BLADE, we used single-cell sequencing data. Cell are subject to phenotyping, clustering and differential gene expression analysis.
-  Then, for each cell type, we retrieve average expression profiles (red cross and top heatmap), and standard deviation per gene (blue circle and bottome heatmap). This prior knowledge is then used in the hierarchical Bayesian model (bottom right) to deconvolutie bulk gene expression data.
+  <img width="100%" height="100%" src="https://github.com/tgac-vumc/BLADE/blob/master/framework.png">
 </p>
+
+
+BLADE framework. To construct a prior knowledge of BLADE, we used single-cell sequencing data. Cell are subject to phenotyping, clustering and differential gene expression analysis. Then, for each cell type, we retrieve average expression profiles (red cross and top heatmap), and standard deviation per gene (blue circle and bottome heatmap). This prior knowledge is then used in the hierarchical Bayesian model (bottom right) to deconvolutie bulk gene expression data.
 
 
 ## Installation
