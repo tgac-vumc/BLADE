@@ -11,12 +11,30 @@ Demo notebook is available [here](https://github.com/tgac-vumc/BLADE/blob/master
 
 <p align="center">
   <img width="490" height="820" src="https://github.com/tgac-vumc/BLADE/blob/master/framework.png">
+  BLADE framework. To construct a prior knowledge of BLADE, we used single-cell sequencing data. Cell are subject to phenotyping, clustering and differential gene expression analysis.
+  Then, for each cell type, we retrieve average expression profiles (red cross and top heatmap), and standard deviation per gene (blue circle and bottome heatmap). This prior knowledge is then used in the hierarchical Bayesian model (bottom right) to deconvolutie bulk gene expression data.
 </p>
 
 
 ## Installation
 
+### Using PiP
+
+The python package of BLADE is available on PiP.
+You can simply:
+
+```
+pip install BLADE_Deconvolution
+```
+
+We tested BLADE with `python => 3.6`.
+
+
 ### Using Conda
+
+One can create a conda environment contains BLADE and also other dependencies to run [Demo](https://github.com/tgac-vumc/BLADE/blob/master/jupyter/BLADE%20-%20Demo%20script.ipynb).
+The environment definition is in [environment.yml](https://github.com/tgac-vumc/BLADE/environment.yml).
+
 ### Step 1: Installing Miniconda 3
 First, please open a terminal or make sure you are logged into your Linux VM. Assuming that you have a 64-bit system, on Linux, download and install Miniconda 3 with:
 
@@ -36,8 +54,7 @@ bash Miniconda3-latest-MacOSX-x86_64.sh
 You can install all the necessary dependency using the following command.
 
 ```
-conda install mamba -c conda-forge -y
-mamba create --name BLADE -c conda-forge -c bioconda jupyter numpy numba scikit-learn joblib multiprocess time scipy qgrid seaborn
+conda env create --file environment.yml
 ```
 
 Then, the `BLADE` environment can be activate by:

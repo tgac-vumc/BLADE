@@ -13,3 +13,6 @@ dependencies:
   - scipy
   - qgrid
   - seaborn
+  - pip
+  - pip:
+      - BLADE_Deconvolution
