@@ -14,7 +14,7 @@ Demo notebook is available [here](https://github.com/tgac-vumc/BLADE/blob/master
 </p>
 
 
-BLADE framework. To construct a prior knowledge of BLADE, we used single-cell sequencing data. Cell are subject to phenotyping, clustering and differential gene expression analysis. Then, for each cell type, we retrieve average expression profiles (red cross and top heatmap), and standard deviation per gene (blue circle and bottome heatmap). This prior knowledge is then used in the hierarchical Bayesian model (bottom right) to deconvolutie bulk gene expression data.
+BLADE framework. To construct a prior knowledge of BLADE, we used single-cell sequencing data. Cell are subject to phenotyping, clustering and differential gene expression analysis. Then, for each cell type, we retrieve average expression profiles (red cross and top heatmap), and standard deviation per gene (blue circle and bottom heatmap). This prior knowledge is then used in the hierarchical Bayesian model (bottom right) to deconvolute bulk gene expression data.
 
 
 ## Installation
