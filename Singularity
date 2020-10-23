@@ -17,6 +17,7 @@ Include: yum
     
     conda install mamba -c conda-forge -y
     mamba install -c conda-forge -c bioconda jupyter numpy numba scikit-learn joblib multiprocess time scipy qgrid seaborn
+    pip install BLADE_Deconvolution
     jupyter nbextension enable --py --sys-prefix qgrid
     jupyter nbextension enable --py --sys-prefix widgetsnbextension
  
