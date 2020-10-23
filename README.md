@@ -19,9 +19,9 @@ BLADE framework. To construct a prior knowledge of BLADE, we used single-cell se
 
 ## Installation
 
-### Using PiP
+### Using pip
 
-The python package of BLADE is available on PiP.
+The python package of BLADE is available on pip.
 You can simply:
 
 ```
@@ -72,3 +72,15 @@ If you have Singularity, you can simply pull the singularity container with all 
 singularity pull shub://tgac-vumc/BLADE
 ```
 
+## Basic usage of BLADE
+
+In the BLADE package, you can load the following functions and modules.
+You can load them by
+
+- `BLADE`: A class object contains core algorithms of `BLADE`. Users can reach internal variables (`Nu`, `Omega`, and `Beta`) and functions for calculating objective functions (ELBO function) and gradients with respect to the variational parameters. There also is an optimization function (`BLADE.Optimize()`) for performing L-BFGS optimization. Though this is the core, we also provide a more accessible function (`BLADE_framework`) that performs deconvolution.
+
+- `BLADE_framework`: A framework based on the `BLADE` class module above.
+
+```
+from BLADE import *
+```
