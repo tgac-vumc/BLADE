@@ -15,11 +15,18 @@ def NuSVR_jobs(X, Y, Nus, sample):
     return sols[np.argmin(RMSE)]
 
 
-def BLADE_framework(X, stdX, Y, Ind_Marker, Ind_sample, Alphas, Alpha0s, Kappa0s, SYs,
-        Nrep, Njob, Nrepfinal, fsel):
+def BLADE_framework(X, stdX, Y, 
+        Ind_Marker=None, Ind_sample=None, 
+        Alphas=[1,10], Alpha0s=[0.1,1,5], Kappa0s=[1,0.5,0.1], SYs=[1,0.3,0.5],
+        Nrep=3, Njob=10, Nrepfinal=10, fsel=0):
 
     Ngene, Nsample = Y.shape
     Ncell = X.shape[1]
+
+    if Ind_Marker is None:
+        Ind_Marker = [True] * Ngene
+    if Ind_sample is None:
+        Ind_sample = [True] * Nsample
 
     X_small = X[Ind_Marker,:]
     Y_small = Y[Ind_Marker,:][:,Ind_sample]
