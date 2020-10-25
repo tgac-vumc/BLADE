@@ -8,12 +8,11 @@
 [![Python 3.6](https://img.shields.io/badge/python-3.6-blue.svg)](https://www.python.org/downloads/release/python-360/)
 [![PyPI version](https://badge.fury.io/py/BLADE-Deconvolution.svg)](https://badge.fury.io/py/BLADE-Deconvolution)
 [![https://www.singularity-hub.org/static/img/hosted-singularity--hub-%23e32929.svg](https://www.singularity-hub.org/static/img/hosted-singularity--hub-%23e32929.svg)](https://singularity-hub.org/collections/4861)
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/tgac-vumc/BLADE/master)
 
 
 
-BLADE (Bayesian Log-normAl DEconvolution) was designed to jointly estimate cell type composition and gene expression profiles per cell type in a single-step while accounting for the observed gene expression variability in single-cell RNA-seq data. 
-
-Demo notebook is available [here](https://github.com/tgac-vumc/BLADE/blob/master/jupyter/BLADE%20-%20Demo%20script.ipynb).
+BLADE (Bayesian Log-normAl DEconvolution) was designed to jointly estimate cell type composition and gene expression profiles per cell type in a single-step while accounting for the observed gene expression variability in single-cell RNA-seq data.
 
 <p align="center">
   <img width="100%" height="100%" src="https://github.com/tgac-vumc/BLADE/blob/master/framework.png">
@@ -21,6 +20,8 @@ Demo notebook is available [here](https://github.com/tgac-vumc/BLADE/blob/master
 
 
 BLADE framework. To construct a prior knowledge of BLADE, we used single-cell sequencing data. Cell are subject to phenotyping, clustering and differential gene expression analysis. Then, for each cell type, we retrieve average expression profiles (red cross and top heatmap), and standard deviation per gene (blue circle and bottom heatmap). This prior knowledge is then used in the hierarchical Bayesian model (bottom right) to deconvolute bulk gene expression data.
+
+#### Demo notebook is available [here](https://github.com/tgac-vumc/BLADE/blob/master/jupyter/BLADE%20-%20Demo%20script.ipynb). You can also run the demo using [Binder](https://mybinder.org/v2/gh/tgac-vumc/BLADE/master).
 
 
 ## Installation
