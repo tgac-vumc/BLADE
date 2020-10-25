@@ -87,7 +87,7 @@ In the BLADE package, you can load the following functions and modules.
   - `self.Nu`: a `Nsample` by `Ngene` by `Ncell` multidimensional array contains estimated gene expression levels of each gene in each cell type for each sample.
   - `numpy.mean(self.Nu,0)`: To obtain a estimated gene expression profile per cell type, we can simply take an average across the samples.
 
-- `BLADE_framework`: A framework based on the `BLADE` class module above. Users need to provide the following input/output arguments.
+- `Framework`: A framework based on the `BLADE` class module above. Users need to provide the following input/output arguments.
   - Input arguments
     - `X`: a `Ngene` by `Ncell` matrix contains average gene expression profiles per cell type (a signature matrix) in log-scale.
     - `stdX`: a `Ngene` by `Ncell` matrix contains standard deviation per gene per cell type (a signature matrix of gene expression variability).
@@ -103,4 +103,4 @@ In the BLADE package, you can load the following functions and modules.
     - `best_obj`: The best object form Empirical Bayes step. If no genes and samples are filtered, `best_obj` is the same as `final_obj`.
     - `best_set`: A list contains the hyperparameters selected in the Empirical Bayes step.
     - `All_out`: A list of `BLADE` objects from the Empirical Bayes step.
-- `BLADE_run`/`BLADE_wrapper`: Internal functions used by `BLADE_framework`.
+- `BLADE_job`/`Optimize`: Internal functions used by `Framework`.
