@@ -21,7 +21,29 @@ BLADE (Bayesian Log-normAl DEconvolution) was designed to jointly estimate cell 
 
 BLADE framework. To construct a prior knowledge of BLADE, we used single-cell sequencing data. Cell are subject to phenotyping, clustering and differential gene expression analysis. Then, for each cell type, we retrieve average expression profiles (red cross and top heatmap), and standard deviation per gene (blue circle and bottom heatmap). This prior knowledge is then used in the hierarchical Bayesian model (bottom right) to deconvolute bulk gene expression data.
 
-#### Demo notebook is available [here](https://github.com/tgac-vumc/BLADE/blob/master/jupyter/BLADE%20-%20Demo%20script.ipynb). You can also run the demo using [Binder](https://mybinder.org/v2/gh/tgac-vumc/BLADE/master). Note that for the testing on Binder, parallel processing has to be disabled by setting `Njob` to 1.
+#### Demo notebook is available [here](https://github.com/tgac-vumc/BLADE/blob/master/jupyter/BLADE%20-%20Demo%20script.ipynb). You can also run the demo using [Binder](https://mybinder.org/v2/gh/tgac-vumc/BLADE/master). 
+Note that for the testing on Binder, parallel processing has to be disabled by setting `Njob` to 1. BLADE significantly performs better with high number of cores, epecially when `Nsample`, `Ngene` and `Ncell` is high. In case of Binder, we recommend the following setting:
+
+- `Ncell=3`
+- `Ngene=50`
+- `Nsample=10`
+
+It takes about 30 minutes to complete the demo execution on Binder.
+
+
+## System Requirements
+
+### Hardware Requirements
+
+BLADE can run on the minimal computer spec, such as Binder (1 CPU, 2GB RAM on Google Cloud), whend data size is small. However, BLADE can significantly benefit from the larger amount of CPUs and RAM. Empirical Bayes procedure of BLADE runs indepednet opetimization procedure that can be parallelized. In our evaluation, we used a computing node with the following spec:
+
+- 40 threads (Xeon 2.60GHz)
+- 128 GB RAM
+
+
+### OS Requirements
+
+The package development version is tested on Linux operating systems. (CentOS 7 and Ubuntu 16.04). 
 
 
 ## Installation
@@ -29,7 +51,7 @@ BLADE framework. To construct a prior knowledge of BLADE, we used single-cell se
 ### Using pip
 
 The python package of BLADE is available on pip.
-You can simply:
+You can simply (takes only <1min):
 
 ```
 pip install BLADE_Deconvolution
@@ -59,7 +81,7 @@ bash Miniconda3-latest-MacOSX-x86_64.sh
 
 ### Step 2: Create a conda environment
 
-You can install all the necessary dependency using the following command.
+You can install all the necessary dependency using the following command (may takes few minutes).
 
 ```
 conda env create --file environment.yml
@@ -73,7 +95,7 @@ conda activate BLADE
 
 ### Using Singularity
 
-If you have Singularity, you can simply pull the singularity container with all dependency resolved.
+If you have Singularity, you can simply pull the singularity container with all dependency resolved (in few minutes, depends on the network speed).
 
 ```
 singularity pull shub://tgac-vumc/BLADE
