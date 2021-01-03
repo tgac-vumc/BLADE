@@ -35,7 +35,7 @@ It takes about 30 minutes to complete the demo execution on Binder.
 
 ### Hardware Requirements
 
-BLADE can run on the minimal computer spec, such as Binder (1 CPU, 2GB RAM on Google Cloud), whend data size is small. However, BLADE can significantly benefit from the larger amount of CPUs and RAM. Empirical Bayes procedure of BLADE runs indepednet opetimization procedure that can be parallelized. In our evaluation, we used a computing node with the following spec:
+BLADE can run on the minimal computer spec, such as Binder (1 CPU, 2GB RAM on Google Cloud), when data size is small. However, BLADE can significantly benefit from the larger amount of CPUs and RAM. Empirical Bayes procedure of BLADE runs independent optimization procedure that can be parallelized. In our evaluation, we used a computing node with the following spec:
 
 - 40 threads (Xeon 2.60GHz)
 - 128 GB RAM
