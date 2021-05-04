@@ -180,7 +180,7 @@ def grad_Nu(Y, SigmaY, Nu, Omega, Beta, Mu0, Alpha0, Beta0, Kappa0, Ngene, Ncell
     NuExp = np.sum(Nu, 0)/Nsample
 
     Diff = np.zeros((Ngene, Ncell))
-    ExpBetaN = Beta0 + Nsample*(Nsample+3)/2*np.square(Omega) + \
+    ExpBetaN = Beta0 + (Nsample-1)/2*np.square(Omega) + \
             Kappa0*Nsample/(2*(Kappa0 + Nsample)) * (np.square(Omega)/Nsample + np.square(NuExp - Mu0))
 
     for i in range(Nsample):
@@ -278,13 +278,13 @@ def grad_Omega(Y, SigmaY, Nu, Omega, Beta, Mu0, Alpha0, Beta0, Kappa0, Ngene, Nc
     # gradient of PX (first term)
     AlphaN = Alpha0 + Nsample * 0.5
     NuExp = np.sum(Nu, 0)/Nsample
-    ExpBetaN = Beta0 + Nsample*(Nsample+3)/2*np.square(Omega) + \
+    ExpBetaN = Beta0 + (Nsample-1)/2*np.square(Omega) + \
             Kappa0*Nsample/(2*(Kappa0 + Nsample)) * (np.square(Omega)/Nsample + np.square(NuExp - Mu0))
 
     for i in range(Nsample):
         ExpBetaN = ExpBetaN + 0.5*np.square(Nu[i,:,:] - NuExp)
 
-    Nominator = - AlphaN * Nsample*(Nsample+3)*Omega + Kappa0 /(Kappa0 + Nsample) * Omega
+    Nominator = - AlphaN * (Nsample-1)*Omega + Kappa0 /(Kappa0 + Nsample) * Omega
     grad_PX = Nominator / ExpBetaN
 
 
@@ -565,7 +565,7 @@ def Estep_PX(Mu0, Nu, Omega, Alpha0, Beta0, Kappa0, Ncell, Nsample):
     NuExp = np.sum(Nu, 0)/Nsample # expected Nu, Ngene by Ncell
     AlphaN = Alpha0 + 0.5*Nsample # Posterior Alpha
 
-    ExpBetaN = Beta0 + Nsample*(Nsample+3)/2*np.square(Omega) + \
+    ExpBetaN = Beta0 + (Nsample-1)/2*np.square(Omega) + \
             Kappa0*Nsample/(2*(Kappa0 + Nsample)) * (np.square(Omega)/Nsample + np.square(NuExp - Mu0))
 
     for i in range(Nsample):

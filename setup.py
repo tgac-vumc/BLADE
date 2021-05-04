@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="BLADE-Deconvolution",
-    version="0.0.5",
+    version="0.0.6",
     author="Yongsoo Kim",
     author_email="anoyaro84@gmail.com",
     description="BLADE (Bayesian Log-normAl DEconvolution)",
