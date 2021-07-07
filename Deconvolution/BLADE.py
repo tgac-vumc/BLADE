@@ -14,7 +14,7 @@ from sklearn.model_selection import KFold
 from joblib import Parallel, delayed
 import itertools
 import time
-
+import math
 
 __all__ = ['BLADE', 'Framework']
 
@@ -100,6 +100,55 @@ def VarQ(Nu, Beta, Omega, Ngene, Ncell, Nsample):
     
      
     return VarTerm + CovTerm
+
+
+def VarQ_debug(Nu, Beta, Omega, Ngene, Ncell, Nsample):
+    # Ngene by Nsample (Variance value of Y)
+    B0 = np.sum(Beta, axis=1) # Nsample
+    Btilda = ExpF(Beta, Ncell) # Nsample by Ncell
+
+    VarB = Btilda * (1-Btilda)
+    for c in range(Ncell):
+        VarB[:,c] = VarB[:,c] / (B0+1)
+
+    # Nsample Ncell Ncell
+    CovB = np.empty((Nsample, Ncell, Ncell))
+    for l in range(Ncell):
+        for k in range(Ncell):
+            CovB[:,l,k] = - Btilda[:,l] * Btilda[:,k] / (1+B0)
+
+
+    # Ngene by Nsample by Ncell by Ncell
+    CovX = np.empty((Ngene, Nsample, Ncell, Ncell))
+    for l in range(Ncell):
+        for k in range(Ncell):
+            for i in range(Nsample):
+                CovX[:,i,l,k] = np.exp(Nu[i,:,k] + Nu[i,:,l] + \
+                        0.5*(np.square(Omega[:,k]) + np.square(Omega[:,l])))
+
+   
+    #Ngene by Nsample
+    #VarTerm = np.dot(np.exp(2*Nu+2*np.square(Omega)), t(VarB+np.square(Btilda)))\
+    #    - np.dot(np.exp(2*Nu + np.square(Omega)), t(np.square(Btilda)))
+
+    VarTerm = np.zeros((Ngene, Nsample))
+    for i in range(Nsample):
+        for c in range(Ncell):
+            VarTerm[:,i] = VarTerm[:,i] + \
+                np.exp(2*Nu[i,:,c] + 2*np.square(Omega)[:,c])*(VarB[i,c] + np.square(Btilda[i,c])) \
+                    - np.exp(2*Nu[i,:,c] + np.square(Omega[:,c]))*(np.square(Btilda[i,c]))
+
+    # Ngene by Ncell
+    CovTerm = np.zeros((Ngene, Nsample))
+    for l in range(Ncell):
+        for k in range(Ncell):
+            if l != k:
+                for i in range(Nsample):
+                    CovTerm[:,i] = CovTerm[:,i] + CovX[:,i,l,k] * CovB[i,l,k]
+    
+     
+    return zip(VarTerm, CovTerm)
+
 
 
 @njit(fastmath=True)
@@ -808,7 +857,9 @@ class BLADE:
         PF = self.Estep_PF(Beta)
         QX = self.Estep_QX(Omega)
         QF = self.Estep_QF(Beta)
-        #return PY
+
+        #if not math.isfinite(PX+PY+PF-QX-QF):
+        #    import pdb; pdb.set_trace()
         return PX+PY+PF-QX-QF
 
            
@@ -902,7 +953,7 @@ def BLADE_job(X, stdX, Y, Alpha, Alpha0, Kappa0, SY,
     Mu0 = X
     
     logY = np.log(Y+1)
-    SigmaY = np.tile(np.std(logY,1)[:,np.newaxis], [1,Nsample]) * SY
+    SigmaY = np.tile(np.std(logY,1)[:,np.newaxis], [1,Nsample]) * SY + 0.1
     Omega_Init = stdX
     Beta0 = Alpha0 * np.square(stdX)
     
@@ -997,8 +1048,8 @@ def Framework(X, stdX, Y, Ind_Marker=None, Ind_sample=None,
 
     outs, setting = zip(*outs)
     cri = [obs.E_step(obs.Nu, obs.Beta, obs.Omega) for obs in outs]
-    best_obs = outs[np.argmax(cri)]
-    best_set = setting[np.argmax(cri)]
+    best_obs = outs[np.nanargmax(cri)]
+    best_set = setting[np.nanargmax(cri)]
 
     names = ['a_' + str(sett['Alpha']) + '_a0_' + str(sett['Alpha0']) +\
             '_k0_' + str(sett['Kappa0']) + '_sY_' + str(sett['SigmaY']) + '_rep_' + str(sett['Rep'])\
@@ -1023,7 +1074,10 @@ def Framework(X, stdX, Y, Ind_Marker=None, Ind_sample=None,
 
         # split samples
         Nfold = Njob // Nrepfinal
-        kf = KFold(Nfold, shuffle=True)
+        if Nfold > 1:
+            kf = KFold(Nfold, shuffle=True)
+        else:
+            kf = 0
 
         if Nfold < 2 or not ParallSample:
             final_obs = Parallel(n_jobs=Njob, verbose=10)(
