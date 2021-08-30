@@ -5,6 +5,7 @@
 # BLADE: Bayesian Log-normAl DEconvolution
 
 
+[![DOI](https://zenodo.org/badge/297362131.svg)](https://zenodo.org/badge/latestdoi/297362131)
 [![Python 3.6](https://img.shields.io/badge/python-3.6-blue.svg)](https://www.python.org/downloads/release/python-360/)
 [![PyPI version](https://badge.fury.io/py/BLADE-Deconvolution.svg)](https://badge.fury.io/py/BLADE-Deconvolution)
 [![https://www.singularity-hub.org/static/img/hosted-singularity--hub-%23e32929.svg](https://www.singularity-hub.org/static/img/hosted-singularity--hub-%23e32929.svg)](https://singularity-hub.org/collections/4861)
