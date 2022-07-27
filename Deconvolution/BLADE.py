@@ -16,7 +16,9 @@ import itertools
 import time
 import math
 
-__all__ = ['BLADE', 'Framework']
+import warnings
+
+__all__ = ['BLADE', 'Framework', 'Framework_Iterative']
 
 ### Variational parameters Q(X|Nu, Omega) ###
 # Nu: Nsample by Ngene by Ncell
@@ -710,7 +712,7 @@ def g_Var_Beta_python(Nu, Omega, Beta, B0, Ngene, Ncell, Nsample):
 
 class BLADE:
     def __init__(self, Y, SigmaY=0.05, Mu0=2, Alpha=1,\
-            Alpha0=None, Beta0=None, Kappa0=None,\
+            Alpha0=1, Beta0=1, Kappa0=1,\
             Nu_Init=None, Omega_Init=1, Beta_Init=None, \
             fix_Beta = False, fix_Nu=False, fix_Omega=False):
         self.Y = Y
@@ -752,7 +754,7 @@ class BLADE:
         if isinstance(Beta_Init, np.ndarray):
             self.Beta = Beta_Init
         else:
-            self.Beta = np.ones((self.Nsample, self.Ncell))*Beta_Init
+            self.Beta = np.ones((self.Nsample, self.Ncell))
 
         if isinstance(Alpha0, np.ndarray):
             self.Alpha0 = Alpha0 
@@ -928,6 +930,69 @@ class BLADE:
 
         self.log = out.success
 
+    def Check_health(self):
+        # check if optimization is done
+        if not hasattr(self, 'log'):
+            warnings.warn("No optimization is not done yet", Warning, stacklevel=2)
+
+        # check values in hyperparameters
+        if not np.all(np.isfinite(self.Y)):
+            warnings.warn('non-finite values detected in bulk gene expression data (Y).', Warning, stacklevel=2)
+        if np.any(self.Y < 0):
+            warnings.warn('Negative expression levels were detected in bulk gene expression data (Y).', Warning, stacklevel=2)
+
+        if np.any(self.Alpha <= 0):
+            warnings.warn('Zero or negative values in Alpha', Warning, stacklevel=2)
+
+        if np.any(self.Beta <= 0):
+            warnings.warn('Zero or negative values in Beta', Warning, stacklevel=2)
+ 
+        if np.any(self.Alpha0 <= 0):
+            warnings.warn('Zero or negative values in Alpha0', Warning, stacklevel=2)
+        
+        if np.any(self.Beta0 <= 0):
+            warnings.warn('Zero or negative values in Beta0', Warning, stacklevel=2)
+        
+        if np.any(self.Kappa0 <= 0):
+            warnings.warn('Zero or negative values in Kappa0', Warning, stacklevel=2)
+
+
+
+    def Update_Alpha(self, Expected=None, Temperature=None):# if Expected fraction is given, that part will be fixed
+        # Updating Alpha
+        Fraction = self.ExpF(self.Beta)
+        if Expected is not None:  # Reflect the expected values
+            if self.Beta.shape != Expected.shape:
+                raise ValueError('Pre-determined fraction matrix (Expected) is in wrong shape (should be Nsample by Ncelltype)')
+
+            # rescale the fraction to meet the expected fraction
+            for sample in range(self.Nsample):
+                Ind = np.where(~np.isnan(Expected[sample,:]))[0]
+                IndNan = np.where(np.isnan(Expected[sample,:]))[0]
+                Fraction[sample, Ind] = Expected[sample, Ind]  # assign expected fractions for the cell types with known fraction
+                Fraction[sample, IndNan] = Fraction[sample, IndNan] / np.sum(Fraction[sample, IndNan])  # normalize the rest of cell types (sum to one)
+                Fraction[sample, IndNan] = Fraction[sample, IndNan] * (1-np.sum(Expected[sample, Ind]))  # assign determined fraction for the rest of cell types
+        
+        if Temperature is not None:
+            self.Alpha = Temperature * Fraction
+        else:
+            for sample in range(self.Nsample):
+                self.Alpha[sample,:] = Fraction[sample,:] * np.sum(self.Beta[sample,:])
+
+    def Update_SigmaY(self, SampleSpecific=False):
+        Var = VarQ(self.Nu, self.Beta, self.Omega, self.Ngene, self.Ncell, self.Nsample)
+        Exp = ExpQ(self.Nu, self.Beta, self.Omega, self.Ngene, self.Ncell, self.Nsample)
+        
+        a = Var / Exp / Exp
+        b = np.square((self.Y-np.log(Exp)) - 0.5 * a)
+
+        if SampleSpecific:
+            self.SigmaY = np.sqrt(a+b)
+        else:  # shared in all samples
+            self.SigmaY = np.tile(np.mean(np.sqrt(a+b), axis=1)[:,np.newaxis], [1,self.Nsample])
+        
+
+
 
 
 def Optimize(logY, SigmaY, Mu0, Alpha, Alpha0, Beta0, Kappa0, Nu_Init, Omega_Init, Nsample, Ncell, Init_Fraction):
@@ -946,7 +1011,7 @@ def Optimize(logY, SigmaY, Mu0, Alpha, Alpha0, Beta0, Kappa0, Nu_Init, Omega_Ini
     return obs
 
 def BLADE_job(X, stdX, Y, Alpha, Alpha0, Kappa0, SY,
-                Init_Fraction, Rep, Crit='E_step'):
+                Init_Fraction, Rep):
     Ngene, Nsample = Y.shape
     Ncell = X.shape[1]
     
@@ -978,6 +1043,34 @@ def NuSVR_job(X, Y, Nus, sample):
     sols = [NuSVR(kernel='linear', nu=nu).fit(np.exp(X),Y[:, sample]) for nu in Nus]
     RMSE = [mse(sol.predict(np.exp(X)), Y[:, sample]) for sol in sols]
     return sols[np.argmin(RMSE)]
+
+def SVR_Initialization(X, Y, Nus, Njob=1, fsel=0):
+    Ngene, Nsample = Y.shape
+    Ngene, Ncell = X.shape
+    SVRcoef = np.zeros((Ncell, Nsample))
+    Selcoef = np.zeros((Ngene, Nsample))
+
+    sols = Parallel(n_jobs=Njob, verbose=10)(
+            delayed(NuSVR_job)(X, Y, Nus, i)
+            for i in range(Nsample)
+            )
+
+    for i in range(Nsample):
+        Selcoef[sols[i].support_,i] = 1
+        SVRcoef[:,i] = np.maximum(sols[i].coef_,0)
+
+    Init_Fraction = SVRcoef
+    for i in range(Nsample):
+        Init_Fraction[:,i] = Init_Fraction[:,i]/np.sum(SVRcoef[:,i])
+
+    if fsel > 0:
+        Ind_use = Selcoef.sum(1) > Nsample * fsel
+        print( "SVM selected " + str(Ind_use.sum()) + ' genes out of ' + str(len(Ind_use)) + ' genes')
+    else:
+        print("No feature filtering is done (fsel = 0)")
+        Ind_use = np.ones((Ngene)) > 0
+
+    return Init_Fraction, Ind_use
 
 
 def Framework(X, stdX, Y, Ind_Marker=None, Ind_sample=None, 
@@ -1012,30 +1105,7 @@ def Framework(X, stdX, Y, Ind_Marker=None, Ind_sample=None,
 
 
     print('Initialization with Support vector regression')
-    SVRcoef = np.zeros((Ncell, Nsample))
-    Selcoef = np.zeros((Nmarker, Nsample))
-    Nus = [0.25, 0.5, 0.75]
-
-    sols = Parallel(n_jobs=Njob, verbose=10)(
-            delayed(NuSVR_job)(X_small, Y[Ind_Marker,:], Nus, i)
-            for i in range(Nsample)
-            )
-
-    for i in range(Nsample):
-        Selcoef[sols[i].support_,i] = 1
-        SVRcoef[:,i] = np.maximum(sols[i].coef_,0)
-
-    Init_Fraction = SVRcoef
-    for i in range(Nsample):
-        Init_Fraction[:,i] = Init_Fraction[:,i]/np.sum(SVRcoef[:,i])
-
-    if fsel > 0:
-        Ind_use = Selcoef.sum(1) > Nsample * fsel
-        print( "SVM selected " + str(Ind_use.sum()) + ' genes out of ' + str(len(Ind_use)) + ' genes')
-    else:
-        print("No feature filtering is done (fsel = 0)")
-        Ind_use = np.ones((Nmarker)) > 0
-
+    Init_Fraction, Ind_use = SVR_Initialization(X_small, Y[Ind_Marker,:], Nus=[0.25, 0.5, 0.75], Njob=Njob)
 
     start = time.time()
     outs = Parallel(n_jobs=Njob, verbose=10)(
@@ -1136,4 +1206,132 @@ def Framework(X, stdX, Y, Ind_Marker=None, Ind_sample=None,
         final_obs = best_obs
 
     return final_obs, best_obs, best_set, All_out
-  
+
+
+def Iterative_Optimization(X, stdX, Y, Alpha, Alpha0, Kappa0, SY, Rep,
+                Init_Fraction, Init_Trust=10, Expected=None, iter=100, minDiff=10e-4, TempRange=None, Update_SigmaY=False):
+    Ngene, Nsample = Y.shape
+    Ncell = X.shape[1]
+    
+    Mu0 = X
+    
+    logY = np.log(Y+1)
+    SigmaY = np.tile(np.std(logY,1)[:,np.newaxis], [1,Nsample]) * SY + 0.1
+    Omega_Init = stdX
+    Beta0 = Alpha0 * np.square(stdX)
+    
+    Nu_Init = np.zeros((Nsample, Ngene, Ncell))
+    for i in range(Nsample):
+        Nu_Init[i,:,:] = X
+
+    #  Optimization without given Temperature
+    Beta_Init = np.random.gamma(shape=1, size=(Nsample, Ncell)) + t(Init_Fraction) * Init_Trust
+    obj = BLADE(logY, SigmaY, Mu0, Alpha, Alpha0, Beta0, Kappa0,
+            Nu_Init, Omega_Init, Beta_Init)
+
+    if TempRange is None:
+        obj.Check_health()
+        obj_func = [None] * iter
+        obj_func[0] = obj.E_step(obj.Nu, obj.Beta, obj.Omega)
+
+        for i in range(1,iter):
+            obj.Optimize()
+            obj.Update_Alpha(Expected=Expected)
+            if Update_SigmaY:
+                obj.Update_SigmaY()
+            obj_func[i] = obj.E_step(obj.Nu, obj.Beta, obj.Omega)
+
+            # Check convergence
+            if np.abs(obj_func[i] - obj_func[i-1]) < minDiff:
+                break
+
+    else:  #  Optimization with Temperature
+        obj.Check_health()
+        obj_func = [None] * len(TempRange)
+        obj_func[0] = obj.E_step(obj.Nu, obj.Beta, obj.Omega)
+
+        for i, temp in zip(range(1,len(TempRange)), TempRange):
+            obj.Optimize()
+            obj.Update_Alpha(Expected=Expected, Temperature=temp)
+            if Update_SigmaY:
+                obj.Update_SigmaY()
+
+            obj_func[i] = obj.E_step(obj.Nu, obj.Beta, obj.Omega)
+
+            # Check convergence
+            if np.abs(obj_func[i] - obj_func[i-1]) < minDiff:
+                break
+
+    return obj, obj_func, Rep
+
+
+
+def Framework_Iterative(X, stdX, Y, Ind_Marker=None,  # all samples will be used
+        Alpha=1, Alpha0=0.1, Kappa0=1, sY=1,
+        Nrep=3, Njob=10, Nrepfinal=10, fsel=0, Update_SigmaY=False, Init_Trust= 10,
+        Expectation=None, Temperature=None, IterMax=100):
+
+    args = locals()
+
+    Ngene, Nsample = Y.shape
+    Ncell = X.shape[1]
+
+    if Ind_Marker is None:
+        Ind_Marker = [True] * Ngene
+
+    X_small = X[Ind_Marker,:]
+    Y_small = Y[Ind_Marker,:]
+    stdX_small = stdX[Ind_Marker,:]
+
+    Nmarker = Y_small.shape[0]
+    Nsample_small = Y_small.shape[1]
+
+    if Nmarker < Ngene:
+        print("start optimization using marker genes: " + str(Nmarker) +\
+            " genes out of " + str(Ngene) + " genes.")
+    else:
+        print("all of " + str(Ngene) + " genes are used for optimization.")
+
+    print('Initialization with Support vector regression')
+    Init_Fraction, Ind_use = SVR_Initialization(X_small, Y_small, Njob=Njob, Nus=[0.25, 0.5, 0.75])
+
+    start = time.time()
+    if Temperature is None or Temperature is False: #  Optimization without the temperature
+        outs = Parallel(n_jobs=Njob, verbose=10)(
+            delayed(Iterative_Optimization)(X_small[Ind_use,:], stdX_small[Ind_use,:], Y_small[Ind_use,:], 
+                Alpha, Alpha0, Kappa0, sY, rep, Init_Fraction, Expected=Expectation, Init_Trust=Init_Trust, iter=IterMax,  
+                Update_SigmaY = Update_SigmaY)
+                for rep in range(Nrep)
+            )
+        outs, convs, Reps = zip(*outs)
+        cri = [obj.E_step(obj.Nu, obj.Beta, obj.Omega) for obj in outs]
+        out = outs[np.nanargmax(cri)]
+        conv = convs[np.nanargmax(cri)]
+    else:
+        if Temperature is True:
+            Temperature = [1, 100]
+        else:
+            if len(Temperature) != 2:
+                raise ValueError('Temperature has to be either None, True or list of 2 temperature values (minimum and maximum temperatures)')
+            if Temperature[1] < Temperature[0]:
+                raise ValueError('A lower maximum temperature than minimum temperature is given')
+        outs = Parallel(n_jobs=Njob, verbose=10)(
+            delayed(Iterative_Optimization)(X_small[Ind_use,:], stdX_small[Ind_use,:], Y_small[Ind_use,:], 
+                Alpha, Alpha0, Kappa0, sY, rep, Init_Fraction, Expected=Expectation, Init_Trust=Init_Trust, 
+                    TempRange=np.linspace(Temperature[0], Temperature[1], IterMax),
+                    Update_SigmaY = Update_SigmaY)
+                for rep in range(Nrep)
+            )
+        outs, convs, Reps = zip(*outs)
+        cri = [obj.E_step(obj.Nu, obj.Beta, obj.Omega) for obj in outs]
+        out = outs[np.nanargmax(cri)]
+        conv = convs[np.nanargmax(cri)]
+
+
+    #  TBD : final BLADE execution with all genes
+
+    return out, conv, zip(outs, cri), args
+
+
+
+
