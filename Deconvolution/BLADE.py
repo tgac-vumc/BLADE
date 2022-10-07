@@ -962,17 +962,42 @@ class BLADE:
         # Updating Alpha
         Fraction = self.ExpF(self.Beta)
         if Expected is not None:  # Reflect the expected values
-            if self.Beta.shape != Expected.shape:
-                raise ValueError('Pre-determined fraction matrix (Expected) is in wrong shape (should be Nsample by Ncelltype)')
+            # expectaion can be a diction (with two keys; Group and Expectation) or just a matrix
+            if type(Expected) is dict:
+                if "Group" in Expected:  # Group (Ngroup by Nctype matrix) indicates a group of cell types with known collective fraction
+                    Group = Expected['Group']
+                else:
+                    Group = np.identity(Expected['Expectation'].shape[1])
+                Expected = Expected['Expectation']
+            else:
+                Group = np.identity(Expected.shape[1])
+
+            if self.Beta.shape[0] != Expected.shape[0] or self.Beta.shape[1] != Group.shape[1]:
+                raise ValueError('Pre-determined fraction is in wrong shape (should be Nsample by Ncelltype)')
 
             # rescale the fraction to meet the expected fraction
             for sample in range(self.Nsample):
-                Ind = np.where(~np.isnan(Expected[sample,:]))[0]
-                IndNan = np.where(np.isnan(Expected[sample,:]))[0]
-                Fraction[sample, Ind] = Expected[sample, Ind]  # assign expected fractions for the cell types with known fraction
+                IndG = np.where(~np.isnan(Expected[sample,:]))[0]
+                #IndNan = np.where(np.isnan(Expected[sample,:]))[0]
+
+                IndCells = []
+
+                for group in IndG:
+                    IndCell = np.where(Group[group,:] == 1)[0]
+                    Fraction[sample, IndCell] = Fraction[sample, IndCell] / np.sum(Fraction[sample,IndCell])  # make fraction sum to one for the group
+                    Fraction[sample, IndCell] = Fraction[sample, IndCell] * Expected[sample, group]  # assign determined fraction for the group
+                    IndCells = IndCells + list(IndCell)
+                #Fraction[sample, Ind] = Expected[sample, Ind]  # assign expected fractions for the cell types with known fraction
+                IndNan = np.setdiff1d(np.array(range(Group.shape[1])), np.array(IndCells))
                 Fraction[sample, IndNan] = Fraction[sample, IndNan] / np.sum(Fraction[sample, IndNan])  # normalize the rest of cell types (sum to one)
-                Fraction[sample, IndNan] = Fraction[sample, IndNan] * (1-np.sum(Expected[sample, Ind]))  # assign determined fraction for the rest of cell types
-        
+                Fraction[sample, IndNan] = Fraction[sample, IndNan] * (1-np.sum(Expected[sample, IndG]))  # assign determined fraction for the rest of cell types
+            #for sample in range(self.Nsample):
+            #    Ind = np.where(~np.isnan(Expected[sample,:]))[0]
+            #    IndNan = np.where(np.isnan(Expected[sample,:]))[0]
+            #    Fraction[sample, Ind] = Expected[sample, Ind]  # assign expected fractions for the cell types with known fraction
+            #    Fraction[sample, IndNan] = Fraction[sample, IndNan] / np.sum(Fraction[sample, IndNan])  # normalize the rest of cell types (sum to one)
+            #    Fraction[sample, IndNan] = Fraction[sample, IndNan] * (1-np.sum(Expected[sample, Ind]))  # assign determined fraction for the rest of cell types
+
         if Temperature is not None:
             self.Alpha = Temperature * Fraction
         else:
