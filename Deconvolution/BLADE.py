@@ -957,7 +957,6 @@ class BLADE:
             warnings.warn('Zero or negative values in Kappa0', Warning, stacklevel=2)
 
 
-
     def Update_Alpha(self, Expected=None, Temperature=None):# if Expected fraction is given, that part will be fixed
         # Updating Alpha
         Fraction = self.ExpF(self.Beta)
@@ -991,18 +990,56 @@ class BLADE:
                 IndNan = np.setdiff1d(np.array(range(Group.shape[1])), np.array(IndCells))
                 Fraction[sample, IndNan] = Fraction[sample, IndNan] / np.sum(Fraction[sample, IndNan])  # normalize the rest of cell types (sum to one)
                 Fraction[sample, IndNan] = Fraction[sample, IndNan] * (1-np.sum(Expected[sample, IndG]))  # assign determined fraction for the rest of cell types
-            #for sample in range(self.Nsample):
-            #    Ind = np.where(~np.isnan(Expected[sample,:]))[0]
-            #    IndNan = np.where(np.isnan(Expected[sample,:]))[0]
-            #    Fraction[sample, Ind] = Expected[sample, Ind]  # assign expected fractions for the cell types with known fraction
-            #    Fraction[sample, IndNan] = Fraction[sample, IndNan] / np.sum(Fraction[sample, IndNan])  # normalize the rest of cell types (sum to one)
-            #    Fraction[sample, IndNan] = Fraction[sample, IndNan] * (1-np.sum(Expected[sample, Ind]))  # assign determined fraction for the rest of cell types
 
         if Temperature is not None:
             self.Alpha = Temperature * Fraction
         else:
             for sample in range(self.Nsample):
                 self.Alpha[sample,:] = Fraction[sample,:] * np.sum(self.Beta[sample,:])
+
+
+
+    def Update_Alpha_Group(self, Expected=None, Temperature=None):# if Expected fraction is given, that part will be fixed
+        # Updating Alpha
+        AvgBeta = np.mean(self.Beta, 1)
+	Fraction_Avg = AvgBeta / np.sum(AvgBeta)
+
+        if Expected is not None:  # Reflect the expected values
+            # expectaion can be a diction (with two keys; Group and Expectation) or just a matrix
+            if type(Expected) is dict:
+                if "Group" in Expected:  # Group (Ngroup by Nctype matrix) indicates a group of cell types with known collective fraction
+                    Group = Expected['Group']
+                else:
+                    Group = np.identity(Expected['Expectation'].shape[1])
+                Expected = Expected['Expectation']
+            else:
+                Group = np.identity(Expected.shape[1])
+
+            if self.Beta.shape[0] != Expected.shape[0] or self.Beta.shape[1] != Group.shape[1]:
+                raise ValueError('Pre-determined fraction is in wrong shape (should be Nsample by Ncelltype)')
+
+            # rescale the fraction to meet the expected fraction
+            for sample in range(self.Nsample):
+		Fraction = Fraction_Avg
+                
+                IndG = np.where(~np.isnan(Expected[sample,:]))[0]
+                IndCells = []
+                
+                for group in IndG:
+                    IndCell = np.where(Group[group,:] == 1)[0]
+                    Fraction[IndCell] = Fraction[IndCell] / np.sum(Fraction[IndCell])  # make fraction sum to one for the group
+                    Fraction[IndCell] = Fraction[IndCell] * Expected[sample, group]  # assign determined fraction for the group
+                    IndCells = IndCells + list(IndCell)
+                IndNan = np.setdiff1d(np.array(range(Group.shape[1])), np.array(IndCells))
+                Fraction[IndNan] = Fraction[IndNan] / np.sum(Fraction[IndNan])  # normalize the rest of cell types (sum to one)
+                Fraction[IndNan] = Fraction[IndNan] * (1-np.sum(Expected[sample, IndG]))  # assign determined fraction for the rest of cell types
+            
+            AlphaSum = np.sum(AvgBeta[IndNan])/ np.sum(Fraction[IndNan])
+            self.Alpha[sample, :] = Fraction * AlphaSum
+        else:
+            for sample in range(self.Nsample):
+                self.Alpha[sample,:] = AvgBeta
+
 
     def Update_SigmaY(self, SampleSpecific=False):
         Var = VarQ(self.Nu, self.Beta, self.Omega, self.Ngene, self.Ncell, self.Nsample)
@@ -1261,7 +1298,7 @@ def Iterative_Optimization(X, stdX, Y, Alpha, Alpha0, Kappa0, SY, Rep,
 
         for i in range(1,iter):
             obj.Optimize()
-            obj.Update_Alpha(Expected=Expected)
+            obj.Update_Alpha_Group(Expected=Expected)
             if Update_SigmaY:
                 obj.Update_SigmaY()
             obj_func[i] = obj.E_step(obj.Nu, obj.Beta, obj.Omega)
@@ -1277,7 +1314,7 @@ def Iterative_Optimization(X, stdX, Y, Alpha, Alpha0, Kappa0, SY, Rep,
 
         for i, temp in zip(range(1,len(TempRange)), TempRange):
             obj.Optimize()
-            obj.Update_Alpha(Expected=Expected, Temperature=temp)
+            obj.Update_Alpha_Group(Expected=Expected, Temperature=temp)
             if Update_SigmaY:
                 obj.Update_SigmaY()
 
