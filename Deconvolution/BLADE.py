@@ -1001,8 +1001,8 @@ class BLADE:
 
     def Update_Alpha_Group(self, Expected=None, Temperature=None):# if Expected fraction is given, that part will be fixed
         # Updating Alpha
-        AvgBeta = np.mean(self.Beta, 1)
-	Fraction_Avg = AvgBeta / np.sum(AvgBeta)
+        AvgBeta = np.mean(self.Beta, 0)
+        Fraction_Avg = AvgBeta / np.sum(AvgBeta)
 
         if Expected is not None:  # Reflect the expected values
             # expectaion can be a diction (with two keys; Group and Expectation) or just a matrix
@@ -1020,8 +1020,7 @@ class BLADE:
 
             # rescale the fraction to meet the expected fraction
             for sample in range(self.Nsample):
-		Fraction = Fraction_Avg
-                
+                Fraction = np.copy(Fraction_Avg)
                 IndG = np.where(~np.isnan(Expected[sample,:]))[0]
                 IndCells = []
                 
@@ -1034,8 +1033,8 @@ class BLADE:
                 Fraction[IndNan] = Fraction[IndNan] / np.sum(Fraction[IndNan])  # normalize the rest of cell types (sum to one)
                 Fraction[IndNan] = Fraction[IndNan] * (1-np.sum(Expected[sample, IndG]))  # assign determined fraction for the rest of cell types
             
-            AlphaSum = np.sum(AvgBeta[IndNan])/ np.sum(Fraction[IndNan])
-            self.Alpha[sample, :] = Fraction * AlphaSum
+                AlphaSum = np.sum(AvgBeta[IndNan])/ np.sum(Fraction[IndNan])
+                self.Alpha[sample, :] = Fraction * AlphaSum
         else:
             for sample in range(self.Nsample):
                 self.Alpha[sample,:] = AvgBeta
