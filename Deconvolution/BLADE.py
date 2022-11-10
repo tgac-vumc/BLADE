@@ -849,16 +849,16 @@ class BLADE:
             np.tile(np.sum((Beta - 1) * np.tile(polygamma(1, B0)[:,np.newaxis], [1,self.Ncell]), axis=1)[:,np.newaxis], [1,self.Ncell])
 
         #return grad_PF
-        return grad_PY + grad_PF - grad_QF
+        return grad_PY + grad_PF * np.sqrt(self.Ngene / self.Ncell) - grad_QF * np.sqrt(self.Ngene / self.Ncell)
 
 
     # E step
     def E_step(self, Nu, Beta, Omega):
         PX = self.Estep_PX(Nu, Omega)
         PY = self.Estep_PY(Nu, Omega, Beta)
-        PF = self.Estep_PF(Beta)
+        PF = self.Estep_PF(Beta) * np.sqrt(self.Ngene / self.Ncell)
         QX = self.Estep_QX(Omega)
-        QF = self.Estep_QF(Beta)
+        QF = self.Estep_QF(Beta) * np.sqrt(self.Ngene / self.Ncell)
 
         #if not math.isfinite(PX+PY+PF-QX-QF):
         #    import pdb; pdb.set_trace()
