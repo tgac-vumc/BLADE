@@ -431,8 +431,9 @@ def g_Exp_Beta(Nu, Omega, Beta, B0, Ngene, Ncell, Nsample):
         B0mat[:,c] =Beta[:,c]/np.square(B0)
     #B0mat = np.dot(B0mat, t(ExpX)) # Nsample by Ngene
     tmp = np.empty((Nsample, Ngene))
+    tExpX = np.ascontiguousarray(ExpX.transpose(0,2,1)) ## Make tExpX contiguous again
     for i in range(Nsample):
-        tmp[i,:] = np.dot(B0mat[i,:], t(ExpX[i,:,:]))
+        tmp[i,:] = np.dot(B0mat[i,:], tExpX[i,...])
     B0mat = tmp
 
     g_Exp = np.empty((Nsample, Ncell, Ngene))
@@ -839,7 +840,7 @@ class BLADE:
     def grad_Beta(self, Nu, Omega, Beta):
         # return Nsample by Ncell
         B0 = np.sum(self.Beta, axis=1)
-
+        #
         grad_PY = g_PY_Beta(Nu, Beta, Omega, self.Y, self.SigmaY, B0, self.Ngene, self.Ncell, self.Nsample)
 
         grad_PF = (self.Alpha-1)*polygamma(1,Beta) - \
