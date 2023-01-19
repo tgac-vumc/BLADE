@@ -840,7 +840,7 @@ class BLADE:
     def grad_Beta(self, Nu, Omega, Beta):
         # return Nsample by Ncell
         B0 = np.sum(self.Beta, axis=1)
-        #
+        
         grad_PY = g_PY_Beta(Nu, Beta, Omega, self.Y, self.SigmaY, B0, self.Ngene, self.Ncell, self.Nsample)
 
         grad_PF = (self.Alpha-1)*polygamma(1,Beta) - \
