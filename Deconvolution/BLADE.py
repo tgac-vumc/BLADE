@@ -1101,8 +1101,9 @@ def BLADE_job(X, stdX, Y, Alpha, Alpha0, Kappa0, SY,
 
 
 def NuSVR_job(X, Y, Nus, sample):
-    sols = [NuSVR(kernel='linear', nu=nu).fit(np.exp(X),Y[:, sample]) for nu in Nus]
-    RMSE = [mse(sol.predict(np.exp(X)), Y[:, sample]) for sol in sols]
+    X = np.exp(X) - 1
+    sols = [NuSVR(kernel='linear', nu=nu).fit(X,Y[:, sample]) for nu in Nus]
+    RMSE = [mse(sol.predict(X), Y[:, sample]) for sol in sols]
     return sols[np.argmin(RMSE)]
 
 def SVR_Initialization(X, Y, Nus, Njob=1, fsel=0):
