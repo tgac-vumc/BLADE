@@ -1271,11 +1271,29 @@ def Framework(X, stdX, Y, Ind_Marker=None, Ind_sample=None,
     return final_obs, best_obs, best_set, All_out
 
 
-def Iterative_Optimization(X, stdX, Y, Alpha, Alpha0, Kappa0, SY, Rep,
-                Init_Fraction, Init_Trust=10, Expected=None, iter=100, minDiff=10e-4, TempRange=None, Update_SigmaY=False):
+def Parallel_Purification(obj, Expected=None, iter=100, minDiff=10e-4, Update_SigmaY=False):
+    obj.Check_health()
+    obj_func = [float('nan')] * iter
+    obj_func[0] = obj.E_step(obj.Nu, obj.Beta, obj.Omega)
+    for i in range(1,iter):
+        obj.Optimize()
+        obj.Update_Alpha_Group(Expected=Expected)
+        if Update_SigmaY:
+                obj.Update_SigmaY()
+        obj_func[i] = obj.E_step(obj.Nu, obj.Beta, obj.Omega)
+
+        # Check convergence
+        if np.abs(obj_func[i] - obj_func[i-1]) < minDiff:
+            break
+
+    return obj, obj_func
+        
+
+def Iterative_Optimization(X, stdX, Y, Alpha, Alpha0, Kappa0, SY, Rep, Init_Fraction, Init_Trust=10,
+                           Expected=None, iter=100, minDiff=10e-4, TempRange=None, Update_SigmaY=False, Fixed_Beta = None, Ncores = 1):
     Ngene, Nsample = Y.shape
     Ncell = X.shape[1]
-    
+
     Mu0 = X
     
     logY = np.log(Y+1)
@@ -1287,12 +1305,67 @@ def Iterative_Optimization(X, stdX, Y, Alpha, Alpha0, Kappa0, SY, Rep,
     for i in range(Nsample):
         Nu_Init[i,:,:] = X
 
-    #  Optimization without given Temperature
-    Beta_Init = np.random.gamma(shape=1, size=(Nsample, Ncell)) + t(Init_Fraction) * Init_Trust
-    obj = BLADE(logY, SigmaY, Mu0, Alpha, Alpha0, Beta0, Kappa0,
-            Nu_Init, Omega_Init, Beta_Init)
+    if TempRange is None and Fixed_Beta is not None: ## Parallel purification after cell fractions are fixed
+        Beta_Init = Fixed_Beta
+        ## Create nGenes/Ncores BLADE objects to be optimized
+        objs = list() # init list for BLADE objs
+        nGenes = math.ceil(Ngene/Ncores) ## take ceil so last core to start has little fewer genes
+        for core in range(Ncores):
+            if core == 0:
+                objs.append(BLADE(logY[0:nGenes,], SigmaY[0:nGenes,], Mu0[0:nGenes,], Alpha, Alpha0[0:nGenes,], Beta0[0:nGenes,], Kappa0,
+                    Nu_Init[:,0:nGenes,:], Omega_Init[0:nGenes,], Beta_Init, fix_Beta = True))
+            elif core == np.max(Ncores): # So the last few genes are not forgotten
+                objs.append(BLADE(logY[nGenes*core:,], SigmaY[nGenes*core:,], Mu0[nGenes*core:,],
+                                        Alpha, Alpha0[nGenes*core:,], Beta0[nGenes*core:,], Kappa0, Nu_Init[:,nGenes*core:,:], Omega_Init[nGenes*core:,],
+                                        Beta_Init, fix_Beta = True))
+            else:
+                objs.append(BLADE(logY[nGenes*core:nGenes*(core+1),], SigmaY[nGenes*core:nGenes*(core+1),], Mu0[nGenes*core:nGenes*(core+1),],
+                                        Alpha, Alpha0[nGenes*core:nGenes*(core+1),], Beta0[nGenes*core:nGenes*(core+1),], Kappa0, Nu_Init[:,nGenes*core:nGenes*(core+1):,:],
+                                        Omega_Init[nGenes*core:nGenes*(core+1),], Beta_Init, fix_Beta = True))
 
-    if TempRange is None:
+        
+        ## Do Parallel purification
+        outs = Parallel(n_jobs=Ncores, verbose=10)(
+                delayed(Parallel_Purification)(obj, Expected = Expected, iter = iter, minDiff = minDiff, Update_SigmaY= Update_SigmaY)
+                    for obj in objs
+                )
+        
+        objs, obj_func = zip(*outs)
+        ## Merge BLADE objs back to one with all genes again
+        ## Create full variables again (Y, SigmaY, mu0 etc. from all objs
+        ## Init np arrays with first BLADE obj
+        Y = objs[0].Y
+        SigmaY = objs[0].SigmaY
+        Mu0= objs[0].Mu0
+        Alpha = objs[0].Alpha
+        Alpha0 = objs[0].Alpha0
+        Beta0 = objs[0].Beta0
+        Kappa0 = objs[0].Kappa0
+        Nu_Init = objs[0].Nu
+        Omega_Init = objs[0].Omega
+        Beta_Init = objs[0].Beta
+        for i,obj in enumerate(objs):
+            if i==0:
+                continue
+            
+            Y = np.concatenate((Y,obj.Y))
+            SigmaY = np.concatenate((SigmaY,obj.SigmaY))
+            Mu0= np.concatenate((Mu0,obj.Mu0))
+            Alpha0 = np.concatenate((Alpha0,obj.Alpha0))
+            Beta0 = np.concatenate((Beta0,obj.Beta0))
+            Kappa0 = np.concatenate((Kappa0,obj.Kappa0))
+            Nu_Init = np.concatenate((Nu_Init,obj.Nu), axis = 1)
+            Omega_Init = np.concatenate((Omega_Init,obj.Omega))
+        ## Create final merged BLADE obj to return
+        obj = BLADE(Y, SigmaY, Mu0, Alpha, Alpha0, Beta0, Kappa0, Nu_Init, Omega_Init, Beta_Init, fix_Beta =True)
+        ## Merge obj_func values by taking sum over each rep (so first rep op cpu 1,2,3... averaged etc.)
+        obj_func = list(map(np.nansum, zip(*obj_func)))
+
+    elif TempRange is None and Fixed_Beta is None:
+        Beta_Init = np.random.gamma(shape=1, size=(Nsample, Ncell)) + t(Init_Fraction) * Init_Trust
+        obj = BLADE(logY, SigmaY, Mu0, Alpha, Alpha0, Beta0, Kappa0,
+                    Nu_Init, Omega_Init, Beta_Init)
+        
         obj.Check_health()
         obj_func = [None] * iter
         obj_func[0] = obj.E_step(obj.Nu, obj.Beta, obj.Omega)
@@ -1329,7 +1402,7 @@ def Iterative_Optimization(X, stdX, Y, Alpha, Alpha0, Kappa0, SY, Rep,
 
 
 
-def Framework_Iterative(X, stdX, Y, Ind_Marker=None,  # all samples will be used
+def Framework_Iterative(X, stdX, Y, genes = None, Ind_Marker=None,  # all samples will be used
         Alpha=1, Alpha0=0.1, Kappa0=1, sY=1,
         Nrep=3, Njob=10, Nrepfinal=10, fsel=0, Update_SigmaY=False, Init_Trust= 10,
         Expectation=None, Temperature=None, IterMax=100):
@@ -1339,33 +1412,72 @@ def Framework_Iterative(X, stdX, Y, Ind_Marker=None,  # all samples will be used
     Ngene, Nsample = Y.shape
     Ncell = X.shape[1]
 
-    if Ind_Marker is None:
-        Ind_Marker = [True] * Ngene
-
-    X_small = X[Ind_Marker,:]
-    Y_small = Y[Ind_Marker,:]
-    stdX_small = stdX[Ind_Marker,:]
-
-    Nmarker = Y_small.shape[0]
-    Nsample_small = Y_small.shape[1]
-
-    if Nmarker < Ngene:
-        print("start optimization using marker genes: " + str(Nmarker) +\
-            " genes out of " + str(Ngene) + " genes.")
-    else:
-        print("all of " + str(Ngene) + " genes are used for optimization.")
-
     print('Initialization with Support vector regression')
-    Init_Fraction, Ind_use = SVR_Initialization(X_small, Y_small, Njob=Njob, Nus=[0.25, 0.5, 0.75])
+    if genes is None:
+        Init_Fraction, Ind_use = SVR_Initialization(X, Y, Njob=Njob, Nus=[0.25, 0.5, 0.75])
+    else:
+        Init_Fraction, Ind_use = SVR_Initialization(X.to_numpy(), Y.to_numpy(), Njob=Njob, Nus=[0.25, 0.5, 0.75])
 
     start = time.time()
     if Temperature is None or Temperature is False: #  Optimization without the temperature
-        outs = Parallel(n_jobs=Njob, verbose=10)(
-            delayed(Iterative_Optimization)(X_small[Ind_use,:], stdX_small[Ind_use,:], Y_small[Ind_use,:], 
-                Alpha, Alpha0, Kappa0, sY, rep, Init_Fraction, Expected=Expectation, Init_Trust=Init_Trust, iter=IterMax,  
-                Update_SigmaY = Update_SigmaY)
-                for rep in range(Nrep)
+        if genes is None:
+            outs = Parallel(n_jobs=Njob, verbose=10)(
+                delayed(Iterative_Optimization)(X[Ind_use,:], stdX[Ind_use,:], Y[Ind_use,:], 
+                    Alpha, Alpha0, Kappa0, sY, rep, Init_Fraction, Expected=Expectation, Init_Trust=Init_Trust, iter=IterMax,  
+                    Update_SigmaY = Update_SigmaY)
+                    for rep in range(Nrep)
             )
+        else: ## if genes is given, assume pandas.df for X, stdX and Y
+            stepsize = Ncell # Maybe add this as argument later, then factor of 0.975 should also be dependent on this though/ also an argument/ distribution check instead of median
+            nDEGs = np.arange(stepsize, stop = len(genes)+stepsize, step = stepsize)
+            Y_reconstruction = 0 # init gene-based Y_reconstruction correlation
+            results = dict()
+            for nDEG in nDEGs:
+                subset_genes = genes[0:nDEG]
+                ## subset and transform df to array
+                subset_X = X.loc[subset_genes,].to_numpy()
+                subset_stdX = stdX.loc[subset_genes,].to_numpy()
+                subset_Y = Y.loc[subset_genes,].to_numpy()
+                subset_Alpha0 = Alpha0[0:nDEG,:]
+                ## Run BLADE with subsets
+                outs = Parallel(n_jobs=Njob, verbose=10)(
+                delayed(Iterative_Optimization)(subset_X, subset_stdX, subset_Y, 
+                    Alpha, subset_Alpha0, Kappa0, sY, rep, Init_Fraction, Expected=Expectation, Init_Trust=Init_Trust, iter=IterMax,  
+                                                Update_SigmaY = Update_SigmaY)
+                    for rep in range(Nrep)
+                )
+                ## calculate gene-based Y_reconstruction correlation
+                outs, convs, Reps = zip(*outs)
+                cri = [obj.E_step(obj.Nu, obj.Beta, obj.Omega) for obj in outs]
+                out = outs[np.nanargmax(cri)] # Final BLADE obj
+                Fraction = out.ExpF(out.Beta)
+                Ypred = np.zeros(out.Y.shape)        
+                for sample in range(Nsample):
+                    Ypred[:,sample] = np.dot(out.Nu[sample,:,:], Fraction[sample,:])
+                    Ngene = Ypred.shape[0]
+                    CorrGene = np.diag(np.corrcoef(x=Ypred, y=out.Y, rowvar=True)[0:Ngene, Ngene:2*Ngene])
+                ## Forward Feature selection
+                temp_Y_reconstruction = np.median(CorrGene)
+                if temp_Y_reconstruction < Y_reconstruction * 0.975: ## Only if new Y_recon drops more than 2.5% break
+                    break
+                else:
+                    Y_reconstruction = temp_Y_reconstruction
+                    best_nDEG = nDEG
+
+                results[nDEG] = out
+
+            ## Final Beta
+            Fixed_Beta = results[best_nDEG].Beta
+            ## Run BLADE on all genes with fixed cell fractions based on best result from before
+            print("\nRunning BLADE on all given genes with fixed cell fractions from nDEG = " + str(best_nDEG))
+            outs = Parallel(n_jobs=Njob, verbose=10)(
+                delayed(Iterative_Optimization)(X.to_numpy(), stdX.to_numpy(), Y.to_numpy(),
+                    Alpha, Alpha0, Kappa0, sY, rep, Init_Fraction, Expected=Expectation, Init_Trust=Init_Trust, iter=IterMax,  
+                                                Update_SigmaY = Update_SigmaY, Fixed_Beta = Fixed_Beta, Ncores = math.floor(Njob/Nrep))
+                    for rep in range(Nrep)
+            )
+
+        ## Final BLADE results
         outs, convs, Reps = zip(*outs)
         cri = [obj.E_step(obj.Nu, obj.Beta, obj.Omega) for obj in outs]
         out = outs[np.nanargmax(cri)]
@@ -1390,8 +1502,6 @@ def Framework_Iterative(X, stdX, Y, Ind_Marker=None,  # all samples will be used
         out = outs[np.nanargmax(cri)]
         conv = convs[np.nanargmax(cri)]
 
-
-    #  TBD : final BLADE execution with all genes
 
     return out, conv, zip(outs, cri), args
 
