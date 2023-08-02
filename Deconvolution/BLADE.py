@@ -18,7 +18,7 @@ import math
 
 import warnings
 
-__all__ = ['BLADE', 'Framework', 'Framework_Iterative','Reestimate_Nu']
+__all__ = ['BLADE', 'Framework', 'Framework_Iterative','Reestimate_Nu','Purify_AllGenes']
 
 ### Variational parameters Q(X|Nu, Omega) ###
 # Nu: Nsample by Ngene by Ncell
@@ -615,10 +615,8 @@ def g_PY_Beta(Nu, Beta, Omega, Y, SigmaY, B0, Ngene, Ncell, Nsample):
 def Estep_PX(Mu0, Nu, Omega, Alpha0, Beta0, Kappa0, Ncell, Nsample):
     NuExp = np.sum(Nu, 0)/Nsample # expected Nu, Ngene by Ncell
     AlphaN = Alpha0 + 0.5*Nsample # Posterior Alpha
-
     ExpBetaN = Beta0 + (Nsample-1)/2*np.square(Omega) + \
             Kappa0*Nsample/(2*(Kappa0 + Nsample)) * (np.square(Omega)/Nsample + np.square(NuExp - Mu0))
-
     for i in range(Nsample):
         ExpBetaN = ExpBetaN + 0.5*np.square(Nu[i,:,:] - NuExp)
 
@@ -855,10 +853,10 @@ class BLADE:
 
     # E step
     def E_step(self, Nu, Beta, Omega):
-        PX = self.Estep_PX(Nu, Omega)*(1/self.weight)
-        PY = self.Estep_PY(Nu, Omega, Beta)
+        PX = self.Estep_PX(Nu, Omega)*(1/self.weight) #nan
+        PY = self.Estep_PY(Nu, Omega, Beta) # nan
         PF = self.Estep_PF(Beta) * np.sqrt(self.Ngene / self.Ncell)
-        QX = self.Estep_QX(Omega)*(1/self.weight)
+        QX = self.Estep_QX(Omega)*(1/self.weight) # nan
         QF = self.Estep_QF(Beta) * np.sqrt(self.Ngene / self.Ncell)
 
         #if not math.isfinite(PX+PY+PF-QX-QF):
@@ -970,31 +968,10 @@ class BLADE:
         out = scipy.optimize.minimize(
             fun = loss, x0 = Init, bounds = bounds, jac = grad,
             options = {'disp': True#,
-                       #'maxiter':100
+                       #'maxiter':1000,
                            },
             method='L-BFGS-B')
         
-#        x,f,d = out
-        params = out.x
-
-        self.Nu = params[0:self.Ncell*self.Ngene*self.Nsample].reshape(self.Nsample, self.Ngene, self.Ncell)
-        self.Omega = params[self.Ncell*self.Ngene*self.Nsample:(self.Ncell*self.Ngene*self.Nsample + self.Ngene*self.Ncell)].reshape(self.Ngene, self.Ncell)
-        self.Beta = params[(self.Ncell*self.Ngene*self.Nsample + self.Ngene*self.Ncell):(self.Ncell*self.Ngene*self.Nsample + \
-                        self.Ngene*self.Ncell + self.Nsample*self.Ncell)].reshape(self.Nsample, self.Ncell)
-
-        self.log = out.success
-
-
-        Init = np.concatenate((self.Nu.flatten(), self.Omega.flatten(), self.Beta.flatten()))
-        bounds = [(-np.inf, np.inf) if i < (self.Ncell*self.Ngene*self.Nsample) else (0.0000001, 100) for i in range(len(Init))]
-
-
-        out = scipy.optimize.minimize(
-                fun = loss, x0 = Init, bounds = bounds, jac = grad,
-                options = {'disp': False},
-                method='L-BFGS-B')
-
-#        x,f,d = out
         params = out.x
 
         self.Nu = params[0:self.Ncell*self.Ngene*self.Nsample].reshape(self.Nsample, self.Ngene, self.Ncell)
@@ -1004,7 +981,7 @@ class BLADE:
 
         self.log = out.success
     # Reestimation of Nu at specific index and weight
-    def Reestimate_Nu(self,tumor_ix,weight):
+    def Reestimate_Nu(self,tumor_ix,weight=100):
         self.Fix_par['Beta'] = True
         self.weight=weight
         self.ReOptimize(tumor_ix=tumor_ix)
@@ -1475,6 +1452,75 @@ def Framework_Iterative(X, stdX, Y, Ind_Marker=None,  # all samples will be used
     return out, conv, zip(outs, cri), args
 
 
+def Parallel_Purification(obj):
+    obj.Check_health()
+    obj.Optimize()
+    obj.Reestimate_Nu(tumor_ix=0)
+    obj_func = obj.E_step(obj.Nu, obj.Beta, obj.Omega)
+    return obj, obj_func
 
+# Purify all genes in parralel using fixed Beta
+def Purify_AllGenes(BLADE_object, Mu, Omega, Y, Ncores):
+    obj = BLADE_object['final_obj']
+    Ngene, Nsample = Y.shape
+    Ncell = Mu.shape[1]
+    logY = np.log(Y+1)
+    SigmaY = np.tile(np.std(logY,1)[:,np.newaxis], [1,Nsample]) * BLADE_object['outs']['sY'][0] + 0.1
+    Beta0 = BLADE_object['outs']['Alpha0'][0] * np.square(Omega)
+    Nu_Init = np.zeros((Nsample, Ngene, Ncell))
+    for i in range(Nsample):
+        Nu_Init[i,:,:] = Mu
+    # Fetch gene indices per job
+    Ngene_total = Mu.shape[0]
+    Gene_ix_per_job =  {core : list(range(int(np.ceil((core)*Ngene_total/Ncores)),int(np.ceil((core+1)*Ngene_total/Ncores)))) for core in range(Ncores)}
+    objs = list()
+    
+    for core in range(Ncores):
+        ix = Gene_ix_per_job[core]
+        objs.append(BLADE(
+            Y = logY[ix,:],
+            SigmaY = SigmaY[ix,:],
+            Mu0 = Mu[ix,:],
+            Alpha = obj.Alpha,
+            Alpha0 = BLADE_object['outs']['Alpha0'],
+            Beta0 = Beta0[ix,:],
+            Kappa0 = BLADE_object['outs']['Kappa0'],
+            Nu_Init = Nu_Init[:,ix,:],
+            Omega_Init = Omega[ix,:],
+            Beta_Init = obj.Beta,
+            fix_Beta=True))
+        
+    outs = Parallel(n_jobs=Ncores, verbose=10)(
+                delayed(Parallel_Purification)(obj)
+                    for obj in objs
+                )
+        
+    objs, obj_func = zip(*outs)
+
+    
+    for i,obj in enumerate(objs):
+        if i==0:
+            Y = objs[0].Y
+            SigmaY = objs[0].SigmaY
+            Mu0= objs[0].Mu0
+            Alpha = objs[0].Alpha
+            Alpha0 = objs[0].Alpha0
+            Beta0 = objs[0].Beta0
+            Kappa0 = objs[0].Kappa0
+            Nu_Init = objs[0].Nu
+            Omega_Init = objs[0].Omega
+            Beta_Init = objs[0].Beta
+        else:    
+            Y = np.concatenate((Y,obj.Y))
+            SigmaY = np.concatenate((SigmaY,obj.SigmaY))
+            Mu0= np.concatenate((Mu0,obj.Mu0))
+            Alpha0 = np.concatenate((Alpha0,obj.Alpha0))
+            Beta0 = np.concatenate((Beta0,obj.Beta0))
+            Kappa0 = np.concatenate((Kappa0,obj.Kappa0))
+            Nu_Init = np.concatenate((Nu_Init,obj.Nu), axis = 1)
+            Omega_Init = np.concatenate((Omega_Init,obj.Omega))
+    ## Create final merged BLADE obj to return
+    obj = BLADE(Y, SigmaY, Mu0, Alpha, Alpha0, Beta0, Kappa0, Nu_Init, Omega_Init, Beta_Init, fix_Beta =True)
+    return obj
 
     
