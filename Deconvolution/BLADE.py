@@ -967,7 +967,7 @@ class BLADE:
         
         out = scipy.optimize.minimize(
             fun = loss, x0 = Init, bounds = bounds, jac = grad,
-            options = {'disp': True#,
+            options = {'disp': False#,
                        #'maxiter':1000,
                            },
             method='L-BFGS-B')
@@ -1472,21 +1472,18 @@ def Purify_AllGenes(BLADE_object, Mu, Omega, Y, Ncores):
         Nu_Init[i,:,:] = Mu
     # Fetch gene indices per job
     Ngene_total = Mu.shape[0]
-    Gene_ix_per_job =  {core : list(range(int(np.ceil((core)*Ngene_total/Ncores)),int(np.ceil((core+1)*Ngene_total/Ncores)))) for core in range(Ncores)}
-    objs = list()
-    
-    for core in range(Ncores):
-        ix = Gene_ix_per_job[core]
+    objs = []
+    for ix in range(Ngene_total):
         objs.append(BLADE(
-            Y = logY[ix,:],
-            SigmaY = SigmaY[ix,:],
-            Mu0 = Mu[ix,:],
+            Y = np.atleast_2d(logY[ix,:]),
+            SigmaY = np.atleast_2d(SigmaY[ix,:]),
+            Mu0 = np.atleast_2d(Mu[ix,:]),
             Alpha = obj.Alpha,
             Alpha0 = BLADE_object['outs']['Alpha0'],
-            Beta0 = Beta0[ix,:],
+            Beta0 = np.atleast_2d(Beta0[ix,:]),
             Kappa0 = BLADE_object['outs']['Kappa0'],
-            Nu_Init = Nu_Init[:,ix,:],
-            Omega_Init = Omega[ix,:],
+            Nu_Init = np.atleast_2d(Nu_Init[:,ix,:]),
+            Omega_Init = np.atleast_2d(Omega[ix,:]),
             Beta_Init = obj.Beta,
             fix_Beta=True))
         
@@ -1497,8 +1494,9 @@ def Purify_AllGenes(BLADE_object, Mu, Omega, Y, Ncores):
         
     objs, obj_func = zip(*outs)
 
-    
+    logs = []
     for i,obj in enumerate(objs):
+        logs.append(obj.log)
         if i==0:
             Y = objs[0].Y
             SigmaY = objs[0].SigmaY
@@ -1521,6 +1519,7 @@ def Purify_AllGenes(BLADE_object, Mu, Omega, Y, Ncores):
             Omega_Init = np.concatenate((Omega_Init,obj.Omega))
     ## Create final merged BLADE obj to return
     obj = BLADE(Y, SigmaY, Mu0, Alpha, Alpha0, Beta0, Kappa0, Nu_Init, Omega_Init, Beta_Init, fix_Beta =True)
+    obj.log = logs
     return obj
 
     
