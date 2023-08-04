@@ -909,8 +909,31 @@ class BLADE:
 
             return g
         
+        
+        Init = np.concatenate((self.Nu.flatten(), self.Omega.flatten(), self.Beta.flatten()))
+        bounds = [(-np.inf, np.inf) if i < (self.Ncell*self.Ngene*self.Nsample) else (0.0000001, 100) for i in range(len(Init))]
+
+        out = scipy.optimize.minimize(
+            fun = loss, x0 = Init, bounds = bounds, jac = grad,
+            options = {'disp': False#,
+                       #'maxiter':1000,
+                           },
+            method='L-BFGS-B')
+        
+        params = out.x
+
+        
+        
+        
+        self.Nu = params[0:self.Ncell*self.Ngene*self.Nsample].reshape(self.Nsample, self.Ngene, self.Ncell)
+        self.Omega = params[self.Ncell*self.Ngene*self.Nsample:(self.Ncell*self.Ngene*self.Nsample + self.Ngene*self.Ncell)].reshape(self.Ngene, self.Ncell)[:,:,tumor_ix]
+        self.Beta = params[(self.Ncell*self.Ngene*self.Nsample + self.Ngene*self.Ncell):(self.Ncell*self.Ngene*self.Nsample + \
+                        self.Ngene*self.Ncell + self.Nsample*self.Ncell)].reshape(self.Nsample, self.Ncell)
+        
+        self.log = out.success
+        
     def ReOptimize(self, tumor_ix):
-            
+        
             # loss function
         def loss(params):
             Nu = params[0:self.Ncell*self.Ngene*self.Nsample].reshape(self.Nsample, self.Ngene, self.Ncell)
@@ -973,13 +996,19 @@ class BLADE:
             method='L-BFGS-B')
         
         params = out.x
+        
+        self.Nu.shape = (self.Nsample, self.Ngene, self.Ncell)
+        self.Omega.shape = (self.Ngene, self.Ncell)
 
-        self.Nu = params[0:self.Ncell*self.Ngene*self.Nsample].reshape(self.Nsample, self.Ngene, self.Ncell)
-        self.Omega = params[self.Ncell*self.Ngene*self.Nsample:(self.Ncell*self.Ngene*self.Nsample + self.Ngene*self.Ncell)].reshape(self.Ngene, self.Ncell)
+        self.Nu[:,:,tumor_ix] = params[0:self.Ncell*self.Ngene*self.Nsample].reshape(self.Nsample, self.Ngene, self.Ncell)[:,:,tumor_ix]
+
+        self.Omega[:,tumor_ix] = params[self.Ncell*self.Ngene*self.Nsample:(self.Ncell*self.Ngene*self.Nsample + self.Ngene*self.Ncell)].reshape(self.Ngene, self.Ncell)[:,tumor_ix]
         self.Beta = params[(self.Ncell*self.Ngene*self.Nsample + self.Ngene*self.Ncell):(self.Ncell*self.Ngene*self.Nsample + \
                         self.Ngene*self.Ncell + self.Nsample*self.Ncell)].reshape(self.Nsample, self.Ncell)
 
         self.log = out.success
+
+        
     # Reestimation of Nu at specific index and weight
     def Reestimate_Nu(self,tumor_ix,weight=100):
         self.Fix_par['Beta'] = True
@@ -1486,7 +1515,7 @@ def Purify_AllGenes(BLADE_object, Mu, Omega, Y, Ncores):
             Omega_Init = np.atleast_2d(Omega[ix,:]),
             Beta_Init = obj.Beta,
             fix_Beta=True))
-        
+
     outs = Parallel(n_jobs=Ncores, verbose=10)(
                 delayed(Parallel_Purification)(obj)
                     for obj in objs
