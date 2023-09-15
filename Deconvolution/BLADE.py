@@ -1194,7 +1194,7 @@ def Framework(X, stdX, Y, Ind_Marker=None, Ind_sample=None,
     print("Done optimization, elapsed time (min): " + str(elapsed/60))
 
     # run on entire cohort
-    if Nsample_small < Nsample or Ngene < Nmarker:
+    if Nsample_small < Nsample or Nmarker < Ngene:
         print("Start inferring per-sample gene expression levels using the entire genes and samples")
 
         logY = np.log(Y+1)
