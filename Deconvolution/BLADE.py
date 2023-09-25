@@ -18,7 +18,7 @@ import math
 
 import warnings
 
-__all__ = ['BLADE', 'Framework', 'Framework_Iterative']
+__all__ = ['BLADE', 'Framework', 'Framework_Iterative', 'Reestimate_Nu']
 
 ### Variational parameters Q(X|Nu, Omega) ###
 # Nu: Nsample by Ngene by Ncell
@@ -223,7 +223,7 @@ def grad_Nu_python(Y, SigmaY, Nu, Nu0, Beta, Sigma, Omega, Ngene, Ncell, Nsample
            
 @njit(fastmath=True)
 #@njit
-def grad_Nu(Y, SigmaY, Nu, Omega, Beta, Mu0, Alpha0, Beta0, Kappa0, Ngene, Ncell, Nsample):
+def grad_Nu(Y, SigmaY, Nu, Omega, Beta, Mu0, Alpha0, Beta0, Kappa0, Ngene, Ncell, Nsample, weight):
     # return Nsample by Ngene by Ncell
 
     # gradient of PX (first term)
@@ -319,11 +319,11 @@ def grad_Nu(Y, SigmaY, Nu, Omega, Beta, Mu0, Alpha0, Beta0, Kappa0, Ngene, Ncell
     for c in range(Ncell):
         grad_PY[:,:,c] = -np.transpose( 0.5/np.square(SigmaY) * (a[:,c,:] + b[:,c,:]))
 
-    return grad_PX + grad_PY
+    return grad_PX *(1/weight) + grad_PY
 
 @njit(fastmath = True)
 #@njit
-def grad_Omega(Y, SigmaY, Nu, Omega, Beta, Mu0, Alpha0, Beta0, Kappa0, Ngene, Ncell, Nsample):
+def grad_Omega(Y, SigmaY, Nu, Omega, Beta, Mu0, Alpha0, Beta0, Kappa0, Ngene, Ncell, Nsample, weight):
     # Ngene by Ncell
 
     # gradient of PX (first term)
@@ -417,7 +417,7 @@ def grad_Omega(Y, SigmaY, Nu, Omega, Beta, Mu0, Alpha0, Beta0, Kappa0, Ngene, Nc
     grad_QX =  - Nsample / Omega
 
 #    return  grad_PX 
-    return grad_PX + grad_PY - grad_QX
+    return grad_PX * (1/weight) + grad_PY - grad_QX * (1/weight)
 
 @njit(fastmath = True)
 #@njit
@@ -716,6 +716,7 @@ class BLADE:
             Alpha0=1, Beta0=1, Kappa0=1,\
             Nu_Init=None, Omega_Init=1, Beta_Init=None, \
             fix_Beta = False, fix_Nu=False, fix_Omega=False):
+        self.weight = 1
         self.Y = Y
         self.Ngene, self.Nsample = Y.shape
         self.Fix_par = {
@@ -821,7 +822,7 @@ class BLADE:
 
     def grad_Nu(self, Nu, Omega, Beta): 
         # return Ngene by Ncell
-        return grad_Nu(self.Y, self.SigmaY, Nu, Omega, Beta, self.Mu0, self.Alpha0, self.Beta0, self.Kappa0, self.Ngene, self.Ncell, self.Nsample)
+        return grad_Nu(self.Y, self.SigmaY, Nu, Omega, Beta, self.Mu0, self.Alpha0, self.Beta0, self.Kappa0, self.Ngene, self.Ncell, self.Nsample, self.weight)
 
 #    def grad_Nu_python(self, Nu, Nu0, Beta): 
         # return Ngene by Ncell
@@ -831,7 +832,7 @@ class BLADE:
     def grad_Omega(self, Nu, Omega, Beta):
         # return Ngene by Ncell
         return grad_Omega(self.Y, self.SigmaY, Nu, Omega, Beta,
-                self.Mu0, self.Alpha0, self.Beta0, self.Kappa0, self.Ngene, self.Ncell, self.Nsample)
+                          self.Mu0, self.Alpha0, self.Beta0, self.Kappa0, self.Ngene, self.Ncell, self.Nsample, self.weight)
 
     def g_Exp_Beta(self, Nu, Beta, B0):
         return g_Exp_Beta(Nu, Omega, Beta, B0, self.Ngene, self.Ncell, self.Nsample)
@@ -850,16 +851,16 @@ class BLADE:
             np.tile(np.sum((Beta - 1) * np.tile(polygamma(1, B0)[:,np.newaxis], [1,self.Ncell]), axis=1)[:,np.newaxis], [1,self.Ncell])
 
         #return grad_PF
-        return grad_PY + grad_PF - grad_QF
+        return grad_PY + grad_PF * np.sqrt(self.Ngene / self.Ncell) - grad_QF * np.sqrt(self.Ngene / self.Ncell)
 
 
     # E step
     def E_step(self, Nu, Beta, Omega):
-        PX = self.Estep_PX(Nu, Omega)
+        PX = self.Estep_PX(Nu, Omega) * (1/self.weight)
         PY = self.Estep_PY(Nu, Omega, Beta)
-        PF = self.Estep_PF(Beta)
-        QX = self.Estep_QX(Omega)
-        QF = self.Estep_QF(Beta)
+        PF = self.Estep_PF(Beta) * np.sqrt(self.Ngene / self.Ncell)
+        QX = self.Estep_QX(Omega) * (1/self.weight)
+        QF = self.Estep_QF(Beta) * np.sqrt(self.Ngene / self.Ncell)
 
         #if not math.isfinite(PX+PY+PF-QX-QF):
         #    import pdb; pdb.set_trace()
@@ -911,7 +912,7 @@ class BLADE:
 
             return g
 
-
+        
         Init = np.concatenate((self.Nu.flatten(), self.Omega.flatten(), self.Beta.flatten()))
         bounds = [(-np.inf, np.inf) if i < (self.Ncell*self.Ngene*self.Nsample) else (0.0000001, 100) for i in range(len(Init))]
 
@@ -924,6 +925,7 @@ class BLADE:
 #        x,f,d = out
         params = out.x
 
+        
         self.Nu = params[0:self.Ncell*self.Ngene*self.Nsample].reshape(self.Nsample, self.Ngene, self.Ncell)
         self.Omega = params[self.Ncell*self.Ngene*self.Nsample:(self.Ncell*self.Ngene*self.Nsample + self.Ngene*self.Ncell)].reshape(self.Ngene, self.Ncell)
         self.Beta = params[(self.Ncell*self.Ngene*self.Nsample + self.Ngene*self.Ncell):(self.Ncell*self.Ngene*self.Nsample + \
@@ -931,6 +933,89 @@ class BLADE:
 
         self.log = out.success
 
+        
+    def ReOptimize(self, tumor_ix, maxiter):
+
+        # loss function
+        def loss(params):
+            Nu = params[0:self.Ncell*self.Ngene*self.Nsample].reshape(self.Nsample, self.Ngene, self.Ncell)
+            Omega = params[self.Ncell*self.Ngene*self.Nsample:(self.Ncell*self.Ngene*self.Nsample + self.Ngene*self.Ncell)].reshape(self.Ngene, self.Ncell)
+            Beta = params[(self.Ncell*self.Ngene*self.Nsample + self.Ngene*self.Ncell):(self.Ncell*self.Ngene*self.Nsample + \
+                    self.Ngene*self.Ncell + self.Nsample*self.Ncell)].reshape(self.Nsample, self.Ncell)
+
+            if self.Fix_par['Nu']:
+                Nu = self.Nu
+            if self.Fix_par['Beta']:
+                Beta = self.Beta
+            if self.Fix_par['Omega']:
+                Omega = self.Omega
+
+            return -self.E_step(Nu, Beta, Omega)
+
+        # gradient function
+        def grad(params):
+            Nu = params[0:self.Ncell*self.Ngene*self.Nsample].reshape(self.Nsample, self.Ngene, self.Ncell)
+            Omega = params[self.Ncell*self.Ngene*self.Nsample:(self.Ncell*self.Ngene*self.Nsample + self.Ngene*self.Ncell)].reshape(self.Ngene, self.Ncell)
+            Beta = params[(self.Ncell*self.Ngene*self.Nsample + self.Ngene*self.Ncell):(self.Ncell*self.Ngene*self.Nsample + \
+                    self.Ngene*self.Ncell + self.Nsample*self.Ncell)].reshape(self.Nsample, self.Ncell)
+
+            if self.Fix_par['Nu']:
+                g_Nu = np.zeros(Nu.shape)
+            else:
+                g_Nu = -self.grad_Nu(Nu, Omega, Beta)
+                mask=np.ones(g_Nu.shape,bool)
+                mask[:,:,tumor_ix] = False
+                g_Nu[mask] = 0
+
+
+            if self.Fix_par['Omega']:
+                g_Omega = np.zeros(Omega.shape)
+            else:
+                g_Omega = -self.grad_Omega(Nu, Omega, Beta)
+                mask=np.ones(g_Omega.shape,bool)
+                mask[:,tumor_ix] = False
+                g_Omega[mask] = 0
+
+            if self.Fix_par['Beta']:
+                g_Beta = np.zeros(Beta.shape)
+            else:
+                g_Beta = -self.grad_Beta(Nu, Omega, Beta)
+
+            g = np.concatenate((g_Nu.flatten(), g_Omega.flatten(), g_Beta.flatten()))
+
+            return g
+
+
+        Init = np.concatenate((self.Nu.flatten(), self.Omega.flatten(), self.Beta.flatten()))
+        bounds = [(-np.inf, np.inf) if i < (self.Ncell*self.Ngene*self.Nsample) else (0.0000001, 100) for i in range(len(Init))]
+
+
+        out = scipy.optimize.minimize(
+            fun = loss, x0 = Init, bounds = bounds, jac = grad,
+            options = {'disp': True,
+                       'maxiter':maxiter
+                           },
+            method='L-BFGS-B')
+
+#        x,f,d = out
+        params = out.x
+
+        self.Nu = params[0:self.Ncell*self.Ngene*self.Nsample].reshape(self.Nsample, self.Ngene, self.Ncell)
+        self.Omega = params[self.Ncell*self.Ngene*self.Nsample:(self.Ncell*self.Ngene*self.Nsample + self.Ngene*self.Ncell)].reshape(self.Ngene, self.Ncell)
+        self.Beta = params[(self.Ncell*self.Ngene*self.Nsample + self.Ngene*self.Ncell):(self.Ncell*self.Ngene*self.Nsample + \
+                        self.Ngene*self.Ncell + self.Nsample*self.Ncell)].reshape(self.Nsample, self.Ncell)
+
+        self.log = out.success
+
+        
+    # Reestimation of Nu at specific index and weight
+    def Reestimate_Nu(self,tumor_ix,weight, maxiter):
+        self.Fix_par['Beta'] = True
+        self.weight=weight
+        self.ReOptimize(tumor_ix=tumor_ix, maxiter=maxiter)
+        return self
+
+    
     def Check_health(self):
         # check if optimization is done
         if not hasattr(self, 'log'):
@@ -1429,7 +1514,8 @@ def Framework_Iterative(X, stdX, Y, genes = None, Ind_Marker=None,  # all sample
             )
         else: ## if genes is given, assume pandas.df for X, stdX and Y
             stepsize = Ncell # Maybe add this as argument later, then factor of 0.975 should also be dependent on this though/ also an argument/ distribution check instead of median
-            nDEGs = np.arange(stepsize, stop = len(genes)+stepsize, step = stepsize)
+            #nDEGs = np.arange(stepsize, stop = len(genes)+stepsize, step = stepsize)
+            nDEGs = np.arange(Ncell * 5, Ncell * 5+1, step = Ncell * 5)  ##force at 5 for now
             Y_reconstruction = 0 # init gene-based Y_reconstruction correlation
             results = dict()
             for nDEG in nDEGs:
@@ -1469,7 +1555,7 @@ def Framework_Iterative(X, stdX, Y, genes = None, Ind_Marker=None,  # all sample
             ## Final Beta
             Fixed_Beta = results[best_nDEG].Beta
             ## Run BLADE on all genes with fixed cell fractions based on best result from before
-            print("\nRunning BLADE on all given genes with fixed cell fractions from nDEG = " + str(best_nDEG))
+            print("\nRunning BLADE on all given genes with fixed cell fractions from nDEG = " + str(best_nDEG/stepsize))
             outs = Parallel(n_jobs=Njob, verbose=10)(
                 delayed(Iterative_Optimization)(X.to_numpy(), stdX.to_numpy(), Y.to_numpy(),
                     Alpha, Alpha0, Kappa0, sY, rep, Init_Fraction, Expected=Expectation, Init_Trust=Init_Trust, iter=IterMax,  
