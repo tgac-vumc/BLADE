@@ -853,10 +853,10 @@ class BLADE:
 
     # E step
     def E_step(self, Nu, Beta, Omega):
-        PX = self.Estep_PX(Nu, Omega)*(1/self.weight) #nan
-        PY = self.Estep_PY(Nu, Omega, Beta) # nan
+        PX = self.Estep_PX(Nu, Omega)*(1/self.weight)
+        PY = self.Estep_PY(Nu, Omega, Beta)
         PF = self.Estep_PF(Beta) * np.sqrt(self.Ngene / self.Ncell)
-        QX = self.Estep_QX(Omega)*(1/self.weight) # nan
+        QX = self.Estep_QX(Omega)*(1/self.weight)
         QF = self.Estep_QF(Beta) * np.sqrt(self.Ngene / self.Ncell)
 
         #if not math.isfinite(PX+PY+PF-QX-QF):
@@ -926,13 +926,13 @@ class BLADE:
         
         
         self.Nu = params[0:self.Ncell*self.Ngene*self.Nsample].reshape(self.Nsample, self.Ngene, self.Ncell)
-        self.Omega = params[self.Ncell*self.Ngene*self.Nsample:(self.Ncell*self.Ngene*self.Nsample + self.Ngene*self.Ncell)].reshape(self.Ngene, self.Ncell)[:,:,tumor_ix]
+        self.Omega = params[self.Ncell*self.Ngene*self.Nsample:(self.Ncell*self.Ngene*self.Nsample + self.Ngene*self.Ncell)].reshape(self.Ngene, self.Ncell)
         self.Beta = params[(self.Ncell*self.Ngene*self.Nsample + self.Ngene*self.Ncell):(self.Ncell*self.Ngene*self.Nsample + \
                         self.Ngene*self.Ncell + self.Nsample*self.Ncell)].reshape(self.Nsample, self.Ncell)
         
         self.log = out.success
         
-    def ReOptimize(self, tumor_ix):
+    def ReOptimize(self):
         
             # loss function
         def loss(params):
@@ -961,19 +961,10 @@ class BLADE:
                 g_Nu = np.zeros(Nu.shape)
             else:
                 g_Nu = -self.grad_Nu(Nu, Omega, Beta)
-                mask=np.ones(g_Nu.shape,bool)
-                mask[:,:,tumor_ix] = False
-                g_Nu[mask] = 0
-                
-            
             if self.Fix_par['Omega']:
                 g_Omega = np.zeros(Omega.shape)
             else:
-                g_Omega = -self.grad_Omega(Nu, Omega, Beta)
-                mask=np.ones(g_Omega.shape,bool)
-                mask[:,tumor_ix] = False
-                g_Omega[mask] = 0
-                
+                g_Omega = -self.grad_Omega(Nu, Omega, Beta)         
             if self.Fix_par['Beta']:
                 g_Beta = np.zeros(Beta.shape)
             else:
@@ -1000,9 +991,9 @@ class BLADE:
         self.Nu.shape = (self.Nsample, self.Ngene, self.Ncell)
         self.Omega.shape = (self.Ngene, self.Ncell)
 
-        self.Nu[:,:,tumor_ix] = params[0:self.Ncell*self.Ngene*self.Nsample].reshape(self.Nsample, self.Ngene, self.Ncell)[:,:,tumor_ix]
+        self.Nu = params[0:self.Ncell*self.Ngene*self.Nsample].reshape(self.Nsample, self.Ngene, self.Ncell)
 
-        self.Omega[:,tumor_ix] = params[self.Ncell*self.Ngene*self.Nsample:(self.Ncell*self.Ngene*self.Nsample + self.Ngene*self.Ncell)].reshape(self.Ngene, self.Ncell)[:,tumor_ix]
+        self.Omega = params[self.Ncell*self.Ngene*self.Nsample:(self.Ncell*self.Ngene*self.Nsample + self.Ngene*self.Ncell)].reshape(self.Ngene, self.Ncell)
         self.Beta = params[(self.Ncell*self.Ngene*self.Nsample + self.Ngene*self.Ncell):(self.Ncell*self.Ngene*self.Nsample + \
                         self.Ngene*self.Ncell + self.Nsample*self.Ncell)].reshape(self.Nsample, self.Ncell)
 
@@ -1010,10 +1001,10 @@ class BLADE:
 
         
     # Reestimation of Nu at specific index and weight
-    def Reestimate_Nu(self,tumor_ix,weight=100):
+    def Reestimate_Nu(self,weight=100):
         self.Fix_par['Beta'] = True
         self.weight=weight
-        self.ReOptimize(tumor_ix=tumor_ix)
+        self.ReOptimize()
         return self
 
 
@@ -1484,7 +1475,7 @@ def Framework_Iterative(X, stdX, Y, Ind_Marker=None,  # all samples will be used
 def Parallel_Purification(obj):
     obj.Check_health()
     obj.Optimize()
-    obj.Reestimate_Nu(tumor_ix=0)
+    obj.Reestimate_Nu()
     obj_func = obj.E_step(obj.Nu, obj.Beta, obj.Omega)
     return obj, obj_func
 
@@ -1551,4 +1542,3 @@ def Purify_AllGenes(BLADE_object, Mu, Omega, Y, Ncores):
     obj.log = logs
     return obj
 
-    
